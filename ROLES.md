@@ -2,7 +2,7 @@
 
 ## Team Lead (1)
 
-- Milad Abdi
+- [Milad Abdi](https://github.com/Milad244)
 
 Reachable on Discord @milad4515 or by email at mka321@sfu.ca (please avoid email if possible). Active most of the day and almost always available from 8 - 9:30 p.m.
 
@@ -18,10 +18,10 @@ Your primary task is to oversee the team and provide support wherever needed.
 
 ## Software Developers (5)
 
-- Arianna Suen
-- Aston Kwan-Lai
-- Athanasius Liu
-- Keyla Wijesinghe
+- [Arianna Suen](https://github.com/ariannasuen)
+- [Aston Kwan-Lai](https://github.com/magefiredoom)
+- [Athanasius Liu](https://github.com/wishadele)
+- [Keyla Wijesinghe](https://github.com/KeylaRW)
 - Rohan Jassi
 
 ### Research Team (2)
@@ -46,8 +46,8 @@ Your primary task is to develop all software for the car. This includes programm
 
 ## Systems Integration (2)
 
-- Maryam Mohsen
-- Qusai Sherif
+- [Maryam Mohsen](https://github.com/omaklovesmaryam)
+- [Qusai Sherif](https://github.com/Qusai1717)
 
 #### Tasks
 Your primary task is to integrate our software into the car and ensure smooth system performance.
