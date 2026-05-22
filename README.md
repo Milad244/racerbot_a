@@ -3,5 +3,5 @@
 ## Roles
 - Racerbot Team A Roles can be found [here](ROLES.md)
 
-## Meeting
+## Meetings
 - Racerbot Team A Meetings can be found [here](meetings)
