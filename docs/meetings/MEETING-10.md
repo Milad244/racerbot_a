@@ -10,6 +10,7 @@
 - Nathan Jacobson []
 - Rafael Feng []
 - Vince Ong []
+- Mark Cao []
 
 ## Topic: Progress Report | From: Milad
 - Milad Abdi: Finished Lecture 6, Lab 4.
@@ -37,6 +38,9 @@
     - Active Software Chat []
     - Active Contributions []
 - Vince Ong: Finished Lecture 6. (New Member)
+    - Active Software Chat []
+    - Active Contributions []
+- Mark Cao: (New Member)
     - Active Software Chat []
     - Active Contributions []
 
