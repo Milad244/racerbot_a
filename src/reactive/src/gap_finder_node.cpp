@@ -37,7 +37,7 @@ void GapFinderNode::lidar_callback(const sensor_msgs::msg::LaserScan::ConstShare
         RCLCPP_WARN(this->get_logger(), "No valid gap found");
         return;
     }
-
+    
     reactive::msg::Gap gap_msg;
     gap_msg.angles.reserve(ranges.size());
     gap_msg.ranges.reserve(ranges.size());

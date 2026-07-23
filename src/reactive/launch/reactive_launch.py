@@ -11,9 +11,16 @@ def generate_launch_description():
         default_value='true',
         description='Whether the deadman button gate is enforced by safety_node'
     )
+
+    use_fallback_follow_method = DeclareLaunchArgument(
+        'use_fallback_follow_method',
+        default_value='false',
+        description='Whether or not the gap follow node should use the default fallback method'
+    )
     
     return LaunchDescription([
         enable_deadman_arg,
+        use_fallback_follow_method,
 
         # Launch gap_finder_node
         Node(
@@ -31,6 +38,7 @@ def generate_launch_description():
             name='gap_follow_node',
             output='screen',
             remappings=[('drive', 'drive_raw')],
+            parameters=[{'use_fallback_method': LaunchConfiguration('use_fallback_follow_method')}]
         ),
 
         # Launch safety_node
