@@ -21,7 +21,7 @@ private:
 
     // Least Squares parameters
     int degree = 2;
-    float k_p = 1.0;
+    float steering_gain = 1.0;
     float lookahead_distance = 1.5; // meters
 
     float max_steering_angle = DEG2RAD(90.0f);

@@ -12,11 +12,13 @@ GapFollowNode::GapFollowNode() : Node("gap_follow_node")
 
     this->declare_parameter("use_fallback_method", false);
     this->declare_parameter("degree", 2);
+    this->declare_parameter("steering_gain", 1.0f);
 
     use_fallback_method = this->get_parameter("use_fallback_method").as_bool();
     RCLCPP_INFO(this->get_logger(), "Using follow method: '%s'", use_fallback_method ? "drive_best_point" : "least_squares");
 
     degree = this->get_parameter("degree").as_int();
+    steering_gain = static_cast<float>(this->get_parameter("steering_gain").as_double());
 }
 
 void GapFollowNode::gap_callback(const reactive::msg::Gap::ConstSharedPtr gap_msg)
@@ -137,7 +139,7 @@ float GapFollowNode::compute_steering_angle_simple(Eigen::VectorXf coefficients,
     float target_y = get_curve_output(target_x, coefficients);
     float alpha = std::atan2(target_y, target_x);
 
-    float steering_angle = k_p * alpha;
+    float steering_angle = steering_gain * alpha;
     return std::clamp(steering_angle, -max_steering_angle, max_steering_angle);
 }
 
