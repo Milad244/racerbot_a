@@ -52,6 +52,47 @@ void GapFollowNode::drive_best_point(const reactive::msg::Gap::ConstSharedPtr ga
 
 void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSharedPtr gap_msg)
 {
+    // Create coordinate vectors for least squares to use
+    Eigen::VectorXf x(gap_msg->ranges.size());
+    Eigen::VectorXf y(gap_msg->ranges.size());
+
+    for (int i = 0; i < gap_msg->ranges.size(); i++)
+    {
+        // Convert polar coordinates to cartesian coordinates
+        std::pair<float, float> coordinate = polar_to_cartesian(gap_msg->ranges[i], gap_msg->angles[i]);
+        x << coordinate.first;
+        y << coordinate.second;
+    }
+
+    // Determine polynomial coefficients
+    Eigen::VectorXf coefficients = fit_polynomial(x, y);
+}
+
+std::pair<float, float> GapFollowNode::polar_to_cartesian(float r, float theta)
+{
+    return std::pair<float, float>(r * std::cos(theta), r * std::sin(theta));
+}
+
+Eigen::VectorXf GapFollowNode::fit_polynomial(const Eigen::VectorXd &x, const Eigen::VectorXd &y)
+{
+    int n = x.size();
+    Eigen::MatrixXf A(n, degree + 1);
+
+    // Build Vandermonde matrix
+    for (int i = 0; i < n; ++i)
+    {
+        double val = 1.0;
+        for (int j = 0; j <= degree; ++j)
+        {
+            A(i, j) = val;
+            val *= x(i);
+        }
+    }
+
+    // Solve A * coeffs = y
+    Eigen::VectorXd coeffs = A.colPivHouseholderQr().solve(y);
+
+    return coeffs;
 }
 
 int main(int argc, char **argv)
