@@ -11,9 +11,12 @@ GapFollowNode::GapFollowNode() : Node("gap_follow_node")
         std::bind(&GapFollowNode::gap_callback, this, std::placeholders::_1));
 
     this->declare_parameter("use_fallback_method", false);
+    this->declare_parameter("degree", 2);
 
     use_fallback_method = this->get_parameter("use_fallback_method").as_bool();
     RCLCPP_INFO(this->get_logger(), "Using follow method: '%s'", use_fallback_method ? "drive_best_point" : "least_squares");
+
+    degree = this->get_parameter("degree").as_int();
 }
 
 void GapFollowNode::gap_callback(const reactive::msg::Gap::ConstSharedPtr gap_msg)

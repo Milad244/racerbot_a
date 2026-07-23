@@ -17,10 +17,17 @@ def generate_launch_description():
         default_value='false',
         description='Whether or not the gap follow node should use the default fallback method'
     )
+
+    least_squares_degree = DeclareLaunchArgument(
+        "least_squares_degree",
+        default_value="2",
+        description="What degree polynomial to use for the least-squares pathfinder"
+    )
     
     return LaunchDescription([
         enable_deadman_arg,
         use_fallback_follow_method,
+        least_squares_degree,
 
         # Launch gap_finder_node
         Node(
@@ -38,7 +45,7 @@ def generate_launch_description():
             name='gap_follow_node',
             output='screen',
             remappings=[('drive', 'drive_raw')],
-            parameters=[{'use_fallback_method': LaunchConfiguration('use_fallback_follow_method')}]
+            parameters=[{'use_fallback_method': LaunchConfiguration('use_fallback_follow_method'), 'degree': LaunchConfiguration('least_squares_degree')}]
         ),
 
         # Launch safety_node
