@@ -6,6 +6,8 @@
 
 #include <Eigen/Dense>
 
+#define DEG2RAD(x) x *(M_PI / 180.0f)
+
 class GapFollowNode : public rclcpp::Node
 {
 public:
@@ -19,6 +21,10 @@ private:
 
     // Least Squares parameters
     int degree = 2;
+    float k_p = 1.0;
+    float lookahead_distance = 1.5; // meters
+
+    float max_steering_angle = DEG2RAD(90.0f);
 
     /// @brief Callback invoked each time we find a valid gap from the laser scan.
     /// @param gap_msg Shared pointer to the incoming Gap message.
@@ -42,5 +48,17 @@ private:
     /// @param x Vector of X coordinates
     /// @param y Vector of Y coordinates
     /// @returns Vector of coefficients for the polynomial, ordered from lowest degree to highest degree
-    Eigen::VectorXf fit_polynomial(const Eigen::VectorXd &x, const Eigen::VectorXd &y);
+    Eigen::VectorXf fit_polynomial(const Eigen::VectorXf &x, const Eigen::VectorXf &y);
+
+    /// @brief Given coefficients and an input value, returns the output value. Basically y = f(x).
+    /// @param x Input value
+    /// @param coefficients Coefficients of the function, ordered from lowest degree to highest degree
+    /// @returns The output value 'y'
+    float get_curve_output(float x, Eigen::VectorXf coefficients);
+
+    /// @brief Simple method to determine steering angle based on coefficients that were calculated
+    /// @param coefficients Coefficients of the function, ordered from lowest degree to highest degree
+    /// @param target_x How far ahead the car should look on the curve
+    /// @returns The angle the car should steer
+    float compute_steering_angle_simple(Eigen::VectorXf coefficients, float target_x);
 };
