@@ -79,15 +79,15 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
 
     if (absolute_angle < DEG2RAD(10.0f))
     {
-        velocity = 2.5f;
+        velocity = 4.0f;
     }
     else if (absolute_angle < DEG2RAD(25.0f))
     {
-        velocity = 1.5f;
+        velocity = 3.0f;
     }
     else
     {
-        velocity = 1.0f;
+        velocity = 2.0f;
     }
 
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
