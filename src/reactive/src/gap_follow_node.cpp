@@ -12,13 +12,13 @@ GapFollowNode::GapFollowNode() : Node("gap_follow_node")
 
     this->declare_parameter("use_fallback_method", false);
     this->declare_parameter("degree", 2);
-    this->declare_parameter("steering_gain", 1.0f);
+    this->declare_parameter("steering_gain", 1.0);
 
     use_fallback_method = this->get_parameter("use_fallback_method").as_bool();
     RCLCPP_INFO(this->get_logger(), "Using follow method: '%s'", use_fallback_method ? "drive_best_point" : "least_squares");
 
     degree = this->get_parameter("degree").as_int();
-    steering_gain = static_cast<float>(this->get_parameter("steering_gain").as_double());
+    steering_gain = this->get_parameter("steering_gain").as_double();
 }
 
 void GapFollowNode::gap_callback(const reactive::msg::Gap::ConstSharedPtr gap_msg)
@@ -65,25 +65,29 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
         return;
     }
 
+    // make sure we get the furthest point in the LiDAR gap to clamp our lookahead value to
+    double max_lookahead = *std::max_element(std::begin(gap_msg->ranges), std::end(gap_msg->ranges));
+
     // Create coordinate vectors for least squares to use
-    Eigen::VectorXf x(gap_msg->ranges.size());
-    Eigen::VectorXf y(gap_msg->ranges.size());
+    Eigen::VectorXd x(gap_msg->ranges.size());
+    Eigen::VectorXd y(gap_msg->ranges.size());
 
     for (int i = 0; i < gap_msg->ranges.size(); i++)
     {
         // Convert polar coordinates to cartesian coordinates
-        std::pair<float, float> coordinate = polar_to_cartesian(gap_msg->ranges[i], gap_msg->angles[i]);
+        std::pair<double, double> coordinate = polar_to_cartesian(gap_msg->ranges[i], gap_msg->angles[i]);
         x(i) = coordinate.first;
         y(i) = coordinate.second;
     }
 
     // Determine polynomial coefficients
-    Eigen::VectorXf coefficients = fit_polynomial(x, y);
+    Eigen::VectorXd coefficients = fit_polynomial(x, y);
 
-    float steering_angle = compute_steering_angle_simple(coefficients, lookahead_distance);
-    float absolute_angle = std::abs(steering_angle);
+    double lookahead = std::clamp(lookahead_distance, 0.1, max_lookahead);
+    double steering_angle = compute_steering_angle_simple(coefficients, lookahead_distance);
+    double absolute_angle = std::abs(steering_angle);
 
-    float velocity;
+    double velocity;
 
     if (absolute_angle < DEG2RAD(10.0f))
     {
@@ -105,15 +109,15 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
     drive_pub_->publish(drive_msg);
 }
 
-std::pair<float, float> GapFollowNode::polar_to_cartesian(float r, float theta)
+std::pair<double, double> GapFollowNode::polar_to_cartesian(double r, double theta)
 {
-    return std::pair<float, float>(r * std::cos(theta), r * std::sin(theta));
+    return std::pair<double, double>(r * std::cos(theta), r * std::sin(theta));
 }
 
-Eigen::VectorXf GapFollowNode::fit_polynomial(const Eigen::VectorXf &x, const Eigen::VectorXf &y)
+Eigen::VectorXd GapFollowNode::fit_polynomial(const Eigen::VectorXd &x, const Eigen::VectorXd &y)
 {
     int n = x.size();
-    Eigen::MatrixXf A(n, degree + 1);
+    Eigen::MatrixXd A(n, degree + 1);
 
     // Build Vandermonde matrix
     for (int i = 0; i < n; ++i)
@@ -127,14 +131,14 @@ Eigen::VectorXf GapFollowNode::fit_polynomial(const Eigen::VectorXf &x, const Ei
     }
 
     // Solve A * coeffs = y
-    Eigen::VectorXf coeffs = A.colPivHouseholderQr().solve(y);
+    Eigen::VectorXd coeffs = A.colPivHouseholderQr().solve(y);
 
     return coeffs;
 }
 
-float GapFollowNode::get_curve_output(float x, Eigen::VectorXf coefficients)
+double GapFollowNode::get_curve_output(float x, Eigen::VectorXd coefficients)
 {
-    float y = 0.0;
+    double y = 0.0;
     for (int i = 0; i < degree + 1; i++) // make sure to factor in constant term
     {
         y += coefficients[i] * (std::pow(x, i));
@@ -142,12 +146,12 @@ float GapFollowNode::get_curve_output(float x, Eigen::VectorXf coefficients)
     return y;
 }
 
-float GapFollowNode::compute_steering_angle_simple(Eigen::VectorXf coefficients, float target_x)
+double GapFollowNode::compute_steering_angle_simple(Eigen::VectorXd coefficients, double target_x)
 {
-    float target_y = get_curve_output(target_x, coefficients);
-    float alpha = std::atan2(target_y, target_x);
+    double target_y = get_curve_output(target_x, coefficients);
+    double alpha = std::atan2(target_y, target_x);
 
-    float steering_angle = steering_gain * alpha;
+    double steering_angle = steering_gain * alpha;
     return std::clamp(steering_angle, -max_steering_angle, max_steering_angle);
 }
 
