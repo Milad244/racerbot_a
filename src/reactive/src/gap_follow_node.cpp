@@ -39,13 +39,13 @@ void GapFollowNode::drive_best_point(const reactive::msg::Gap::ConstSharedPtr ga
     float velocity;
     float target_range = gap_msg->target_range;
     if (target_range > 2)
-        velocity = 2;
+        velocity = 3.0f;
     else if (target_range > 1)
-        velocity = 1.5;
+        velocity = 2.0f;
     else if (target_range > 0.5)
-        velocity = 1;
+        velocity = 1.0f;
     else
-        velocity = 0.5;
+        velocity = 0.5f;
 
     // Publishing to drive
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
@@ -57,6 +57,14 @@ void GapFollowNode::drive_best_point(const reactive::msg::Gap::ConstSharedPtr ga
 
 void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSharedPtr gap_msg)
 {
+
+    if (static_cast<int>(gap_msg->ranges.size()) < degree + 1)
+    {
+        RCLCPP_WARN(this->get_logger(), "Not enough gap points to fit degree-%d polynomial. Falling back to drive_best_point", degree);
+        drive_best_point(gap_msg);
+        return;
+    }
+
     // Create coordinate vectors for least squares to use
     Eigen::VectorXf x(gap_msg->ranges.size());
     Eigen::VectorXf y(gap_msg->ranges.size());
