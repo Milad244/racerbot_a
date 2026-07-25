@@ -84,7 +84,7 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
     Eigen::VectorXd coefficients = fit_polynomial(x, y);
 
     double lookahead = std::clamp(lookahead_distance, 0.1, max_lookahead);
-    double steering_angle = compute_steering_angle_simple(coefficients, lookahead_distance);
+    double steering_angle = compute_steering_angle_simple(coefficients, lookahead);
     double absolute_angle = std::abs(steering_angle);
 
     double velocity;
