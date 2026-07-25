@@ -18,7 +18,7 @@ GapFinderNode::GapFinderNode() : Node("gap_finder_node")
     disparity_threshold_ = this->get_parameter("disparity_threshold").as_double();
     fov_half_angle_ = this->get_parameter("fov_half_angle_deg").as_double() * M_PI / 180.0;
     minimum_gap_threshold_ = this->get_parameter("minimum_gap_threshold").as_double();
-    
+
     laser_scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
         "scan",
         10,
@@ -31,9 +31,11 @@ void GapFinderNode::lidar_callback(const sensor_msgs::msg::LaserScan::ConstShare
 {
     auto ranges = preprocess_lidar(scan_msg);
     extend_obstacles(scan_msg, ranges);
-    int gap_index = find_furthest_gap(scan_msg, ranges);
-    
-    if (gap_index == -1) {
+
+    auto [gap_start, gap_end] = find_furthest_gap(scan_msg, ranges);
+
+    if (gap_start == -1)
+    {
         RCLCPP_WARN(this->get_logger(), "No valid gap found");
         return;
     }
@@ -42,13 +44,14 @@ void GapFinderNode::lidar_callback(const sensor_msgs::msg::LaserScan::ConstShare
     gap_msg.angles.reserve(ranges.size());
     gap_msg.ranges.reserve(ranges.size());
 
-    for (size_t i = 0; i < ranges.size(); ++i) {
+    for (size_t i = gap_start; i < gap_end; ++i)
+    {
         gap_msg.angles.push_back(scan_msg->angle_min + scan_msg->angle_increment * i);
         gap_msg.ranges.push_back(ranges[i]);
     }
 
-    gap_msg.target_angle = scan_msg->angle_min + scan_msg->angle_increment * gap_index;
-    gap_msg.target_range = ranges[gap_index];
+    gap_msg.target_angle = scan_msg->angle_min + scan_msg->angle_increment * gap_start;
+    gap_msg.target_range = ranges[gap_start];
 
     gap_pub_->publish(gap_msg);
 }
@@ -58,8 +61,10 @@ vector<float> GapFinderNode::preprocess_lidar(const sensor_msgs::msg::LaserScan:
     vector<float> ranges = scan_msg->ranges;
 
     // Capping values past max_lidar_range, and rejecting values past fov angle range
-    for (size_t i = 0; i < ranges.size(); ++i) {
-        if (std::abs(scan_msg->angle_min + scan_msg->angle_increment * i) > fov_half_angle_) {
+    for (size_t i = 0; i < ranges.size(); ++i)
+    {
+        if (std::abs(scan_msg->angle_min + scan_msg->angle_increment * i) > fov_half_angle_)
+        {
             ranges[i] = 0;
         }
         ranges[i] = std::min(ranges[i], static_cast<float>(max_lidar_range_));
@@ -69,9 +74,10 @@ vector<float> GapFinderNode::preprocess_lidar(const sensor_msgs::msg::LaserScan:
 }
 
 void GapFinderNode::extend_obstacles(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
-    vector<float>& ranges)
+                                     vector<float> &ranges)
 {
-    if (ranges.empty()) return;
+    if (ranges.empty())
+        return;
 
     float prev_reading = ranges[0];
     for (size_t i = 0; i < ranges.size(); ++i)
@@ -81,16 +87,17 @@ void GapFinderNode::extend_obstacles(const sensor_msgs::msg::LaserScan::ConstSha
         if (std::abs(prev_reading - current_reading) > disparity_threshold_)
         {
             float closer_range = std::min(prev_reading, current_reading);
-            
+
             // Safety bubble: arc length s = r * theta -> theta = car_width_extended_ / r
             double theta = car_width_extended_ / closer_range;
             // Index increment: Used on each side so divide by 2
             size_t index_increment = static_cast<size_t>((theta / scan_msg->angle_increment) / 2.0);
-            
+
             size_t start = (i > index_increment) ? i - index_increment : 0;
             size_t end = std::min(i + index_increment + 1, ranges.size());
-            
-            for (size_t j = start; j < end; ++j) {
+
+            for (size_t j = start; j < end; ++j)
+            {
                 ranges[j] = std::min(ranges[j], closer_range); // don't overwrite an already-closer point
             }
         }
@@ -98,10 +105,11 @@ void GapFinderNode::extend_obstacles(const sensor_msgs::msg::LaserScan::ConstSha
     }
 }
 
-int GapFinderNode::find_furthest_gap(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
-    vector<float>& ranges)
+std::pair<int, int> GapFinderNode::find_furthest_gap(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
+                                                     vector<float> &ranges)
 {
-    int best_index = -1;
+    int best_start = -1;
+    int best_end = -1;
     float furthest_range = 0.0;
 
     size_t i = 0;
@@ -133,18 +141,19 @@ int GapFinderNode::find_furthest_gap(const sensor_msgs::msg::LaserScan::ConstSha
             continue; // gap too narrow for the car, skip it
         }
 
-        // Gap is valid - find the furthest point within it
+        // Gap is valid - check if it contains a further point than the best gap found so far
         for (size_t j = gap_start; j < gap_end; ++j)
         {
             if (ranges[j] > furthest_range)
             {
                 furthest_range = ranges[j];
-                best_index = static_cast<int>(j);
+                best_start = static_cast<int>(gap_start);
+                best_end = static_cast<int>(gap_end);
             }
         }
     }
 
-    return best_index;
+    return {best_start, best_end};
 }
 
 int main(int argc, char **argv)

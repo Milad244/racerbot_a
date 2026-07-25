@@ -34,11 +34,11 @@ private:
     ///        bubble around points closer than a threshold, so the car doesn't clip corners.
     /// @param scan_msg Shared pointer to the incoming LaserScan message.
     /// @param ranges Preprocessed range values to mutate in place, applying obstacle bubbles.
-    void extend_obstacles(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg, std::vector<float>& ranges);
+    void extend_obstacles(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg, std::vector<float> &ranges);
 
-    /// @brief Finds the index of the best point in the furthest gap of the ranges array to steer toward.
+    /// @brief Finds the indices of the furthest gap of the ranges array to steer toward.
     /// @param scan_msg Shared pointer to the incoming LaserScan message.
     /// @param ranges Ranges array (after obstacle extension) to search for the best gap.
-    /// @return Index into ranges corresponding to the best point in the furthest gap.
-    int find_furthest_gap(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg, std::vector<float>& ranges);
+    /// @return Indices into ranges corresponding to the furthest gap.
+    std::pair<int, int> find_furthest_gap(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg, std::vector<float> &ranges);
 };
