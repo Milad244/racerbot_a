@@ -54,7 +54,7 @@ private:
     /// @param x Input value
     /// @param coefficients Coefficients of the function, ordered from lowest degree to highest degree
     /// @returns The output value 'y'
-    double get_curve_output(float x, Eigen::VectorXd coefficients);
+    double get_curve_output(double x, Eigen::VectorXd coefficients);
 
     /// @brief Simple method to determine steering angle based on coefficients that were calculated
     /// @param coefficients Coefficients of the function, ordered from lowest degree to highest degree

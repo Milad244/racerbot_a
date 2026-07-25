@@ -65,9 +65,6 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
         return;
     }
 
-    // make sure we get the furthest point in the LiDAR gap to clamp our lookahead value to
-    double max_lookahead = *std::max_element(std::begin(gap_msg->ranges), std::end(gap_msg->ranges));
-
     // Create coordinate vectors for least squares to use
     Eigen::VectorXd x(gap_msg->ranges.size());
     Eigen::VectorXd y(gap_msg->ranges.size());
@@ -79,6 +76,9 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
         x(i) = coordinate.first;
         y(i) = coordinate.second;
     }
+
+    // make sure we get the furthest point in the LiDAR gap to clamp our lookahead value to
+    double max_lookahead = std::max(x.maxCoeff(), 0.1);
 
     // Determine polynomial coefficients
     Eigen::VectorXd coefficients = fit_polynomial(x, y);
@@ -136,7 +136,7 @@ Eigen::VectorXd GapFollowNode::fit_polynomial(const Eigen::VectorXd &x, const Ei
     return coeffs;
 }
 
-double GapFollowNode::get_curve_output(float x, Eigen::VectorXd coefficients)
+double GapFollowNode::get_curve_output(double x, Eigen::VectorXd coefficients)
 {
     double y = 0.0;
     for (int i = 0; i < degree + 1; i++) // make sure to factor in constant term
