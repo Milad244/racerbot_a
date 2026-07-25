@@ -89,20 +89,7 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
     double steering_angle = compute_steering_angle_simple(coefficients, lookahead);
     double absolute_angle = std::abs(steering_angle);
 
-    double velocity;
-
-    if (absolute_angle < DEG2RAD(10.0f))
-    {
-        velocity = 4.0f;
-    }
-    else if (absolute_angle < DEG2RAD(25.0f))
-    {
-        velocity = 3.0f;
-    }
-    else
-    {
-        velocity = 2.0f;
-    }
+    double velocity = angle_to_speed_function(absolute_angle);
 
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
     drive_msg.header.stamp = this->now();
@@ -155,6 +142,11 @@ double GapFollowNode::compute_steering_angle_simple(Eigen::VectorXd coefficients
 
     double steering_angle = steering_gain * alpha;
     return std::clamp(steering_angle, -max_steering_angle, max_steering_angle);
+}
+
+double GapFollowNode::angle_to_speed_function(double angle)
+{
+    return -1.6 * std::log(angle + 0.3) + 2.4; // current formula from Desmos tinkering <https://www.desmos.com/calculator/ijolz4pnpy>
 }
 
 int main(int argc, char **argv)

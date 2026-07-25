@@ -6,7 +6,7 @@
 
 #include <Eigen/Dense>
 
-#define DEG2RAD(x) x *(M_PI / 180.0f)
+#define DEG2RAD(x) x *(M_PI / 180.0)
 
 class GapFollowNode : public rclcpp::Node
 {
@@ -61,4 +61,9 @@ private:
     /// @param target_x How far ahead the car should look on the curve
     /// @returns The angle the car should steer
     double compute_steering_angle_simple(Eigen::VectorXd coefficients, double target_x);
+
+    /// @brief The mathematical function that determines the car's speed based on the target_angle
+    /// @param angle The target angle
+    /// @return The speed the car should drive at
+    double angle_to_speed_function(double angle);
 };
