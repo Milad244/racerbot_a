@@ -13,12 +13,14 @@ GapFollowNode::GapFollowNode() : Node("gap_follow_node")
     this->declare_parameter("use_fallback_method", false);
     this->declare_parameter("degree", 2);
     this->declare_parameter("steering_gain", 1.0);
+    this->declare_parameter("lookahead_distance", 1.5);
 
     use_fallback_method = this->get_parameter("use_fallback_method").as_bool();
     RCLCPP_INFO(this->get_logger(), "Using follow method: '%s'", use_fallback_method ? "drive_best_point" : "least_squares");
 
     degree = this->get_parameter("degree").as_int();
     steering_gain = this->get_parameter("steering_gain").as_double();
+    lookahead_distance = this->get_parameter("lookahead_distance").as_double();
 }
 
 void GapFollowNode::gap_callback(const reactive::msg::Gap::ConstSharedPtr gap_msg)
