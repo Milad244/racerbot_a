@@ -13,9 +13,9 @@ integration problems:
 
 1. the controller can publish motion directly to `/drive` without a live LB
    deadman signal when it is run outside the composition launch;
-2. the TTC safety node listens to the simulator topic
-   `/ego_racecar/odom`, while this car publishes `/odom`, so TTC is inactive on
-   the physical vehicle;
+2. the checked-in TTC source uses the wrong odometry topic, while the installed
+   `/odom` build is stale and still releases its stop at zero speed with an
+   obstacle present;
 3. the default straight-line command is about **4.326 m/s**, with no configured
    maximum-speed clamp; and
 4. the steering range substantially exceeds this car's calibrated actuator
@@ -24,6 +24,96 @@ integration problems:
 Do not floor-test this implementation in its current state. The findings below
 should be resolved and covered by automated tests before following the
 workspace's wheels-off-ground and low-speed physical test ladder.
+
+## Emergency-collision follow-up: `/odom` did not fix the wall strikes
+
+This follow-up was performed after wall contact continued with the TTC input
+changed to `/odom`. It supersedes the topic-only diagnosis in A-02 and the
+severity originally assigned to A-09.
+
+### Root conclusion
+
+Changing the subscription fixes only one wiring error. The collision is
+explained by a **fail-open, stateless TTC stop**, no hard footprint-clearance
+check, unsafe gap targeting, and deployed software that does not match the
+checked-in source.
+
+Every LaserScan callback first clears `estop_active_`. TTC is evaluated only
+while measured closing speed is positive. Once a stop slows odometry to zero,
+all beams are skipped, the stop clears, and the next positive `/drive_raw`
+command is forwarded even if the wall remains directly ahead. This produces a
+drive/stop/drive pulse or creep into the wall. Raising the TTC threshold cannot
+correct that state-machine error.
+
+### Deployed code did not match checked-in code
+
+Installed `reactive` artifacts were dated July 22 while relevant source and
+launch files were changed on July 25. Runtime inspection showed:
+
+| Item | Checked-in source | Installed executable |
+|---|---|---|
+| Odometry topic | `/ego_racecar/odom` | `/odom` |
+| TTC threshold | `0.3 s` | `30.0 s` |
+| Gap controller | least-squares, up to 4.326 m/s | older direct-angle, up to 2.0 m/s |
+| Gap target | fallback uses `gap_start` | older finder retains first furthest beam |
+
+The `/odom` experiment reached an installed safety executable, but did not test
+the source currently visible in this repository. C++ changes require a rebuild,
+sourcing that exact install, and confirming live parameters and subscriptions
+before physical conclusions are reproducible.
+
+### Reproduced failure
+
+The installed executable was tested in an isolated ROS domain with synthetic
+messages only; no hardware or motor node was started.
+
+1. With LB held, `/odom.linear.x = 0`, a forward range of `0.1 m`, and a
+   positive `/drive_raw` request, the positive command was forwarded.
+2. With `/odom.linear.x = 2 m/s` and a forward range of `1 m`, TTC triggered
+   and zero speed was published.
+3. Returning odometry to zero re-created step 1 while the obstacle remained.
+
+This is why `/odom`—even with the installed `30 s` threshold—did not prevent
+contact.
+
+### TTC is not a footprint-clearance check
+
+The node divides raw LiDAR range by projected speed. It neither subtracts the
+body boundary nor checks static minimum clearance. With the workspace geometry
+(`0.58 m` length, `0.31 m` width, LiDAR `0.33 m` ahead of the rear-axle
+reference), the body extends about `0.12 m` ahead of the LiDAR and `0.155 m`
+sideways. A bumper or corner can contact a wall while raw range remains
+positive. At zero speed TTC cannot guard clearance at all.
+
+At the checked-in straight speed of `4.326 m/s` and threshold of `0.3 s`, the
+raw trigger is about `1.30 m`. Body clearance is about `1.18 m`; even ignoring
+latency, that requires roughly `8.0 m/s²` constant deceleration.
+
+The node has no odometry timestamp and does not require odometry before motion.
+Missing odom behaves as zero speed and permits launch; stale odom is used
+forever. If physical forward odometry is negative, the
+`max(speed * cos(angle), 0)` calculation disables forward TTC. The sign must be
+verified wheels-off-ground.
+
+### Why the workspace “vibecoded” code behaves better
+
+The comparison implementation does not rely on TTC alone. Its current code:
+
+- refuses motion when odometry is missing or stale;
+- computes rectangular body-boundary distance and hard footprint clearance;
+- computes TTC from clearance rather than raw range;
+- uses a `0.5 s` threshold with a `2.0 m/s` maximum;
+- inflates obstacles by half-width plus a `0.10 m` margin (`0.255 m` total,
+  versus Racerbot A's approximately `0.175 m`);
+- checks gap depth and physical width and targets the midpoint;
+- limits corner speed and fails safe on invalid scans; and
+- passes all 29 current ROS-free gap-logic tests.
+
+Racerbot A can instead target a gap edge, fits LiDAR obstacle-hit points rather
+than a proven collision-free centerline, and does not check wheelbase, LiDAR
+pose, swept body corners, or physical turn clearance. The comparison code's
+planner avoidance, static-clearance stop, and TTC form three layers; Racerbot A
+does not currently have those layers working together.
 
 ## Severity definitions
 
@@ -64,29 +154,28 @@ Required direction: put the live `/joy`/LB check in every executable that can
 publish a motion command. A safety-wrapper composition can remain as
 defence-in-depth, but it must not be the only deadman gate.
 
-### A-02 — Critical — TTC uses a simulator odometry topic, not this car's topic
+### A-02 — Critical — Odometry integration is inconsistent and fails open
 
 Evidence:
 
-- `src/reactive/src/safety_node.cpp:25-26` subscribes to
-  `/ego_racecar/odom`.
-- The physical workspace publishes `nav_msgs/Odometry` on `/odom` from
-  `vesc_to_odom_node`; no default component publishes `/ego_racecar/odom`.
-- `speed_` therefore remains at its initialized `0.0f`
-  (`src/reactive/include/safety_node.hpp:51`).
-- `scan_callback()` skips TTC whenever closing speed is effectively zero
-  (`src/reactive/src/safety_node.cpp:77-80`).
-- In an isolated runtime check, publishing 3.0 m/s on the car's `/odom` found
-  no subscriber. After a 0.1 m forward obstacle scan and a held synthetic LB
-  signal, `safety_node` forwarded a 2.0 m/s `/drive_raw` command unchanged.
-  The Joy timeout was lengthened only to isolate TTC behavior.
+- The checked-in source subscribes to `/ego_racecar/odom`, although the car
+  publishes `/odom`.
+- The installed executable inspected in this follow-up did subscribe to
+  `/odom`, proving that the reported topic change exists only in stale build
+  artifacts and not in the current source tree.
+- Neither version records odometry time or blocks motion before fresh odometry.
+- Missing odometry leaves `speed_` at zero, skips every TTC calculation, and
+  allows a positive raw command through.
+- The code considers only positive projected `linear.x`; a reversed physical
+  odometry sign would also skip forward TTC.
 
-Impact: the node named and documented as the safety node provides no
-time-to-collision braking on the physical car.
+Impact: source inspection, launch behavior, and physical-test behavior are not
+reproducible from one version, while missing, stale, or wrong-sign speed can
+silently disable the collision layer.
 
-Required direction: make the odometry topic a declared parameter defaulting to
-`/odom`, validate odometry freshness, and add an integration test using the
-physical topic graph.
+Required direction: parameterize `/odom` as the physical default, require fresh
+odometry before any positive command, validate its sign wheels-off-ground,
+reject implausible data, and test the exact installed build.
 
 ### A-03 — Critical — Default speed reaches 4.326 m/s with no speed clamp
 
@@ -212,28 +301,34 @@ Required direction: validate parameters at startup, validate every received
 message, and refuse to publish motion unless the final speed and steering are
 finite and within explicit limits.
 
-### A-09 — Medium — TTC behavior is too weakly specified for an emergency brake
+### A-09 — Critical — TTC stop releases at zero speed while the wall remains
 
 Evidence:
 
-- The default threshold is only 0.3 seconds
-  (`src/reactive/src/safety_node.cpp:11`).
+- Each scan clears `estop_active_` before TTC evaluation.
+- Projected closing speeds at or below `1e-3` are skipped.
+- Once a TTC stop reduces odometry to zero, the next scan clears the stop
+  without obstacle-clearance hysteresis or operator reset.
+- The next positive `/drive_raw` command can enter the same obstacle. This was
+  reproduced against the installed `/odom` build with a `0.1 m` forward range.
+- Raw range is not converted to footprint clearance, and there is no static
+  minimum-clearance condition.
+- The checked-in TTC threshold is only 0.3 seconds
+  (`src/reactive/src/safety_node.cpp:11`); the stale installed executable used
+  30.0 seconds and still exhibited the zero-speed release.
 - The node publishes a zero Ackermann speed
   (`src/reactive/src/safety_node.cpp:83-88`); it does not command or verify a
   braking-current path.
-- There is no odometry freshness check. A stale last speed can cause false
-  stops; no odometry leaves TTC disabled as described in A-02.
-- The estop state is reset at the start of every scan
-  (`src/reactive/src/safety_node.cpp:64-68`) rather than being explicitly
-  latched or released according to documented hysteresis.
+- There is no odometry freshness check; missing odometry leaves TTC disabled.
 
-Impact: even after the topic is corrected, stopping distance, state release,
-and stale-data behavior are not established well enough to call this an
-emergency brake.
+Impact: correcting `/odom` can make TTC trigger during motion but cannot keep
+the car stopped at the wall. Repeated re-acceleration directly explains the
+reported collision despite the topic change.
 
-Required direction: define and test the stopping contract at each permitted
-speed, include sensor freshness and hysteresis, and verify actual stopping
-distance on stands and then at low speed.
+Required direction: latch the stop until every footprint-relevant beam exceeds
+a conservative release distance for a defined interval (or require operator
+reset), add a hard static body-clearance stop independent of speed, and verify
+the complete stopping envelope at every permitted speed.
 
 ### A-10 — Medium — The repository has no functional regression tests
 
@@ -305,23 +400,34 @@ The hardware bringup, VESC, and motors were not started.
 | Configured lint tests | Fail; details in A-10 |
 | Functional/unit tests | None present |
 | Direct controller with no `/joy` | Published 4.326356 m/s |
-| Safety node subscriber on physical `/odom` | No subscriber |
-| TTC scenario using physical `/odom` | 2.0 m/s raw command forwarded |
+| Checked-in safety source topic | `/ego_racecar/odom`; incorrect for car |
+| Installed safety executable topic | `/odom`; differs from source |
+| Installed effective TTC threshold | `30.0 s`; differs from source `0.3 s` |
+| Zero speed, 0.1 m obstacle, positive raw command | Positive command forwarded |
+| 2.0 m/s, 1.0 m obstacle | TTC stop triggered and zero published |
+| Comparison gap-logic tests | Pass; 29 tests |
 | Uniform open full-circle scan to gap finder | No valid gap produced |
 | Physical-car test | Not performed; unsafe at this audit state |
 
 ## Minimum exit criteria before physical testing
 
 1. Every motion-producing executable independently enforces a fresh LB hold.
-2. TTC consumes `/odom`, validates freshness, and has passing stop/release tests.
-3. Speed and steering are explicitly clamped to conservative car-specific
+2. The reviewed source is rebuilt and shown to match the installed executable,
+   topic graph, and effective parameters.
+3. TTC consumes fresh `/odom`, validates direction/sign, and fails closed when
+   odometry is missing, stale, or implausible.
+4. A footprint-aware static-clearance stop remains latched at zero speed until
+   a conservative release condition or operator reset.
+5. Stop, hold, and release tests reproduce the drive/stop/drive sequence found
+   in this follow-up.
+6. Speed and steering are explicitly clamped to conservative car-specific
    values.
-4. LaserScan and `Gap` data are validated, including NaN/Inf/empty/malformed
+7. LaserScan and `Gap` data are validated, including NaN/Inf/empty/malformed
    cases.
-5. Open space selects a stable near-straight target; gap-edge fallback is
-   replaced.
-6. Unit and ROS integration tests cover the findings above and the configured
+8. Gap selection and swept-path checks maintain body clearance using the car's
+   measured geometry; gap-edge fallback is removed.
+9. Unit and ROS integration tests cover the findings above and the configured
    test suite passes.
-7. Only then: static topic inspection, wheels off the ground, and low-speed
+10. Only then: static topic inspection, wheels off the ground, and low-speed
    floor testing in an open area with an operator at the power disconnect.
 
