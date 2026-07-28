@@ -91,8 +91,7 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
     // Determine polynomial coefficients
     Eigen::VectorXd coefficients = fit_polynomial(theta, r);
 
-    double alpha = 0.3;
-    double best_theta = compute_steering_angle(coefficients, theta);
+    double best_theta = compute_steering_angle(coefficients, theta, max_lookahead);
     double steering_angle = std::clamp(steering_gain * best_theta, -max_steering_angle, max_steering_angle);
     double absolute_angle = std::abs(steering_angle);
 
@@ -101,6 +100,7 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
     drive_msg.header.stamp = this->now();
 
+    double alpha = 0.3;
     filtered_steering_angle = alpha * steering_angle + (1 - alpha) * filtered_steering_angle;
     drive_msg.drive.steering_angle = filtered_steering_angle;
 
@@ -140,7 +140,7 @@ double GapFollowNode::get_curve_output(double x, Eigen::VectorXd coefficients)
     return y;
 }
 
-double GapFollowNode::compute_steering_angle(Eigen::VectorXd coefficients, Eigen::VectorXd theta)
+double GapFollowNode::compute_steering_angle(Eigen::VectorXd coefficients, Eigen::VectorXd theta, double max_lookahead)
 {
     double theta_min = theta.minCoeff();
     double theta_max = theta.maxCoeff();
@@ -151,7 +151,7 @@ double GapFollowNode::compute_steering_angle(Eigen::VectorXd coefficients, Eigen
     {
         double t = theta_min + (theta_max - theta_min) * i / k_samples;
         double predicted_r = get_curve_output(t, coefficients);
-        if (predicted_r > best_range)
+        if (predicted_r > best_range && predicted_r < max_lookahead)
         {
             best_range = predicted_r;
             best_theta = t;
