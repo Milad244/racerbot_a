@@ -14,6 +14,7 @@ GapFollowNode::GapFollowNode() : Node("gap_follow_node")
     this->declare_parameter("degree", 2);
     this->declare_parameter("steering_gain", 1.0);
     this->declare_parameter("lookahead_distance", 1.5);
+    this->declare_parameter("k_samples", 200);
 
     use_fallback_method = this->get_parameter("use_fallback_method").as_bool();
     RCLCPP_INFO(this->get_logger(), "Using follow method: '%s'", use_fallback_method ? "drive_best_point" : "least_squares");
@@ -21,6 +22,7 @@ GapFollowNode::GapFollowNode() : Node("gap_follow_node")
     degree = this->get_parameter("degree").as_int();
     steering_gain = this->get_parameter("steering_gain").as_double();
     lookahead_distance = this->get_parameter("lookahead_distance").as_double();
+    k_samples = this->get_parameter("k_samples").as_int();
 }
 
 void GapFollowNode::gap_callback(const reactive::msg::Gap::ConstSharedPtr gap_msg)
@@ -75,25 +77,24 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
     }
 
     // Create coordinate vectors for least squares to use
-    Eigen::VectorXd x(gap_msg->ranges.size());
-    Eigen::VectorXd y(gap_msg->ranges.size());
+    Eigen::VectorXd theta(gap_msg->ranges.size());
+    Eigen::VectorXd r(gap_msg->ranges.size());
 
     for (int i = 0; i < gap_msg->ranges.size(); i++)
     {
         // Convert polar coordinates to cartesian coordinates
-        std::pair<double, double> coordinate = polar_to_cartesian(gap_msg->ranges[i], gap_msg->angles[i]);
-        x(i) = coordinate.first;
-        y(i) = coordinate.second;
+        theta(i) = gap_msg->angles[i];
+        r(i) = gap_msg->ranges[i];
     }
 
     // make sure we get the furthest point in the LiDAR gap to clamp our lookahead value to
-    double max_lookahead = std::max(x.maxCoeff(), 0.1);
+    double max_lookahead = std::max(r.maxCoeff(), 0.1);
 
     // Determine polynomial coefficients
-    Eigen::VectorXd coefficients = fit_polynomial(x, y);
+    Eigen::VectorXd coefficients = fit_polynomial(theta, r);
 
-    double lookahead = std::clamp(lookahead_distance, 0.1, max_lookahead);
-    double steering_angle = compute_steering_angle_simple(coefficients, lookahead);
+    double best_theta = compute_steering_angle(coefficients, theta);
+    double steering_angle = std::clamp(steering_gain * best_theta, -max_steering_angle, max_steering_angle);
     double absolute_angle = std::abs(steering_angle);
 
     double velocity = angle_to_speed_function(absolute_angle);
@@ -103,11 +104,6 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
     drive_msg.drive.steering_angle = steering_angle;
     drive_msg.drive.speed = velocity;
     drive_pub_->publish(drive_msg);
-}
-
-std::pair<double, double> GapFollowNode::polar_to_cartesian(double r, double theta)
-{
-    return std::pair<double, double>(r * std::cos(theta), r * std::sin(theta));
 }
 
 Eigen::VectorXd GapFollowNode::fit_polynomial(const Eigen::VectorXd &x, const Eigen::VectorXd &y)
@@ -142,13 +138,25 @@ double GapFollowNode::get_curve_output(double x, Eigen::VectorXd coefficients)
     return y;
 }
 
-double GapFollowNode::compute_steering_angle_simple(Eigen::VectorXd coefficients, double target_x)
+double GapFollowNode::compute_steering_angle(Eigen::VectorXd coefficients, Eigen::VectorXd theta)
 {
-    double target_y = get_curve_output(target_x, coefficients);
-    double alpha = std::atan2(target_y, target_x);
+    double theta_min = theta.minCoeff();
+    double theta_max = theta.maxCoeff();
+    double best_theta = theta_min;
+    double best_diff = std::numeric_limits<double>::max();
 
-    double steering_angle = steering_gain * alpha;
-    return std::clamp(steering_angle, -max_steering_angle, max_steering_angle);
+    for (int i = 0; i <= k_samples; i++)
+    {
+        double t = theta_min + (theta_max - theta_min) * i / k_samples;
+        double predicted_r = get_curve_output(t, coefficients);
+        double diff = std::abs(predicted_r - lookahead_distance);
+        if (diff < best_diff)
+        {
+            best_diff = diff;
+            best_theta = t;
+        }
+    }
+    return best_theta;
 }
 
 double GapFollowNode::angle_to_speed_function(double angle)
