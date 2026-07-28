@@ -13,7 +13,6 @@ GapFollowNode::GapFollowNode() : Node("gap_follow_node")
     this->declare_parameter("use_fallback_method", false);
     this->declare_parameter("degree", 2);
     this->declare_parameter("steering_gain", 1.0);
-    this->declare_parameter("lookahead_distance", 1.5);
     this->declare_parameter("k_samples", 200);
 
     use_fallback_method = this->get_parameter("use_fallback_method").as_bool();
@@ -21,7 +20,6 @@ GapFollowNode::GapFollowNode() : Node("gap_follow_node")
 
     degree = this->get_parameter("degree").as_int();
     steering_gain = this->get_parameter("steering_gain").as_double();
-    lookahead_distance = this->get_parameter("lookahead_distance").as_double();
     k_samples = this->get_parameter("k_samples").as_int();
 }
 
