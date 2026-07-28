@@ -23,10 +23,10 @@ private:
     // Least Squares parameters
     int degree = 2;
     double steering_gain = 1.0;
-    double lookahead_distance = 1.5; // meters
     double k_samples = 200;
 
     double max_steering_angle = DEG2RAD(90.0f);
+    double filtered_steering_angle;
 
     /// @brief Callback invoked each time we find a valid gap from the laser scan.
     /// @param gap_msg Shared pointer to the incoming Gap message.
