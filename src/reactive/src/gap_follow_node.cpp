@@ -67,6 +67,13 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
         return;
     }
 
+    if (gap_msg->ranges.size() != gap_msg->angles.size())
+    {
+        RCLCPP_WARN(this->get_logger(), "Ranges and angles have different sizes. Falling back to drive_best_point");
+        drive_best_point(gap_msg);
+        return;
+    }
+
     // Create coordinate vectors for least squares to use
     Eigen::VectorXd x(gap_msg->ranges.size());
     Eigen::VectorXd y(gap_msg->ranges.size());
@@ -146,7 +153,15 @@ double GapFollowNode::compute_steering_angle_simple(Eigen::VectorXd coefficients
 
 double GapFollowNode::angle_to_speed_function(double angle)
 {
-    return -1.6 * std::log(angle + 0.3) + 2.4; // current formula from Desmos tinkering <https://www.desmos.com/calculator/ijolz4pnpy>
+    const double max_speed = 3.5;
+    const double min_speed = 0.25;
+
+    const double a = -1.2;
+    const double b = 0.2;
+    const double c = 1.5;
+
+    double y = a * std::log(angle + b) + c; // current formula from Desmos tinkering <https://www.desmos.com/calculator/ijolz4pnpy>
+    return std::clamp(y, min_speed, max_speed);
 }
 
 int main(int argc, char **argv)
