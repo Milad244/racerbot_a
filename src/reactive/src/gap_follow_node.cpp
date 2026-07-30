@@ -71,7 +71,7 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
     Eigen::VectorXd x(gap_msg->ranges.size());
     Eigen::VectorXd y(gap_msg->ranges.size());
 
-    for (int i = 0; i < gap_msg->ranges.size(); i++)
+    for (size_t i = 0; i < gap_msg->ranges.size(); i++)
     {
         // Convert polar coordinates to cartesian coordinates
         std::pair<double, double> coordinate = polar_to_cartesian(gap_msg->ranges[i], gap_msg->angles[i]);
