@@ -5,6 +5,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <utility>
 using std::vector;
 /// @brief The ROS node responsible for controlling the car with Follow The Gap
 class FollowTheGapNode : public rclcpp::Node
@@ -32,12 +33,24 @@ private:
     void extend_obstacles(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
         vector<float>& ranges);
 
-    /// @brief find the index of the best point in the furthest valid gap
+/// @brief Find all gaps in the lidar ranges that are deeper than the minimum threshold
+    /// @param ranges preprocessed and extended range vector
+    /// @return a vector of start and end indices for each gap
+    vector<std::pair<int, int>> find_all_gaps(const vector<float>& ranges);
+
+    /// @brief Evaluates all found gaps and picks the best one based on width * depth
     /// @param scan_msg The scan data from the lidar
     /// @param ranges preprocessed and extended range vector
-    /// @return index of best point, or -1 if no valid gap found
-    int find_best_gap(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
-        const vector<float>& ranges);
+    /// @param gaps a vector of start and end indices for each gap
+    /// @return a pair representing the start and end index of the best gap
+    std::pair<int, int> pick_best_gap(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
+        const vector<float>& ranges,
+        const vector<std::pair<int, int>>& gaps);
+
+    /// @brief Finds the exact index (center) to drive towards within the best gap
+    /// @param best_gap a pair representing the start and end index of the best gap
+    /// @return index of the best point to target, or -1 if no valid gap
+    int pick_best_point(const std::pair<int, int>& best_gap);
 
     /// @brief func to be called when the lidar completes a scan
     /// @param scan_msg The scan data from the lidar
