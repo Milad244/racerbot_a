@@ -82,7 +82,10 @@ void SafetyNode::scan_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr
 
         if (iTTC <= ttc_threshold_)
         {
-            RCLCPP_INFO(this->get_logger(), "Brake! iTTC=%.2f", iTTC);
+            if (!estop_active_)
+            {
+                RCLCPP_INFO(this->get_logger(), "Brake! iTTC=%.2f", iTTC);
+            }
             estop_active_ = true;
             publish_drive(0.0f, 0.0f);
             break;
