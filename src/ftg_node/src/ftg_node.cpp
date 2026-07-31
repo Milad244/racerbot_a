@@ -62,80 +62,77 @@ void FollowTheGapNode::extend_obstacles(const sensor_msgs::msg::LaserScan::Const
         prev_reading = ranges[i];
     }
 }
-//draw safety bubble around the closest point found. set all points within bubble to 0.
-void FollowTheGapNode::draw_safety_bubble(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
-                                          std::vector<float>& ranges)
+
+// 1. Find all gaps
+std::vector<std::pair<int, int>> FollowTheGapNode::find_all_gaps(const vector<float>& ranges)
 {
-    // Find closest obstacle (ignoring 0 ranges since 0 will already be avoided)
-    bool found_closest = false;
-    size_t closest_index = 0;
-    for (size_t i = 1; i < ranges.size(); ++i) {
-        if (ranges[i] != 0 && !found_closest) {
-            found_closest = true;
-            closest_index = i;
-        }
-
-        if (found_closest && ranges[i] != 0 && ranges[i] < ranges[closest_index]) {
-            closest_index = i;
-        }
-    }
-
-    if (!found_closest) return; // handle case where all ranges are 0
-
-    // Draw safety bubble by calculating theta for the arc made by r = closest point with s = car width
-    // width = 0.35 meters (as car width is 0.3 meters)
-    double theta = 0.35 / ranges[closest_index];
-    RCLCPP_INFO(this->get_logger(), "Range: %f", ranges[closest_index]);
-
-    size_t index_increment = static_cast<size_t>((theta / scan_msg->angle_increment) / 2.0); // Used on each side so divide by 2
-
-    size_t start = (closest_index > index_increment) ? closest_index - index_increment : 0;
-    size_t end = std::min(closest_index + index_increment, ranges.size());
-
-    for (size_t i = start; i < end; ++i) {
-        ranges[i] = 0.0f;
-    }
-}
-int FollowTheGapNode::find_best_gap(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
-    const vector<float>& ranges)
-{
-    int best_index = -1;
-    float furthest_range = 0.0f;
-
+    std::vector<std::pair<int, int>> gaps;
     size_t i = 0;
+    
     while (i < ranges.size()) {
-        if (ranges[i] <= minimum_gap_threshold_) { ++i; continue; }
+        if (ranges[i] <= minimum_gap_threshold_) { 
+            ++i; 
+            continue; 
+        }
 
         size_t gap_start = i;
-        while (i < ranges.size() && ranges[i] > minimum_gap_threshold_) ++i;
-        size_t gap_end = i;
-
-        // i still think avg range is better but it might not be :p
-        float sum = 0.0f;
-        for (size_t j = gap_start; j < gap_end; ++j) sum += ranges[j];
-        float avg_range = sum / (gap_end - gap_start);
-        size_t min_width = static_cast<size_t>((car_width_ / avg_range) / scan_msg->angle_increment);
-
-        if ((gap_end - gap_start) < min_width) continue;
-
-        for (size_t j = gap_start; j < gap_end; ++j) {
-            if (ranges[j] > furthest_range) {
-                furthest_range = ranges[j];
-                best_index = static_cast<int>(j);
-            }
+        while (i < ranges.size() && ranges[i] > minimum_gap_threshold_) {
+            ++i;
         }
+        size_t gap_end = i;
+        
+        gaps.push_back({static_cast<int>(gap_start), static_cast<int>(gap_end)});
     }
-    return best_index;
+    
+    return gaps;
 }
 
-void FollowTheGapNode::lidar_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg)
+// 2. Go through each gap and pick the best gap
+std::pair<int, int> FollowTheGapNode::pick_best_gap(
+    const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
+    const vector<float>& ranges, 
+    const std::vector<std::pair<int, int>>& gaps)
 {
-    auto ranges = preprocess_lidar(scan_msg);
-    draw_safety_bubble(scan_msg, ranges);
-    int best_idx = find_best_gap(scan_msg, ranges);
-                                            //skibidi milad
-    if (best_idx == -1) {
-        RCLCPP_WARN(this->get_logger(), "No valid gap found");
+    std::pair<int, int> best_gap = {-1, -1};
+    float best_score = -1.0f;
+
+    for (const auto& gap : gaps) {
+        int gap_start = gap.first;
+        int gap_end = gap.second;
+
+        // Calculate average depth of the gap
+        float sum = 0.0f;
+        for (int j = gap_start; j < gap_end; ++j) {
+            sum += ranges[j];
+        }
+        float avg_depth = sum / (gap_end - gap_start);
+        
+        // Ensure the gap is wide enough for the car
+        size_t min_width = static_cast<size_t>((car_width_ / avg_depth) / scan_msg->angle_increment);
+        if (static_cast<size_t>(gap_end - gap_start) < min_width) continue;
+
+        // Scoring based on width * depth (as suggested in the image)
+        float score = (gap_end - gap_start) * avg_depth;
+
+        if (score > best_score) {
+            best_score = score;
+            best_gap = gap;
+        }
+    }
+    
+    return best_gap;
+}
+
+// 3. Go through the best gap and pick the best point
+int FollowTheGapNode::pick_best_point(const std::pair<int, int>& best_gap)
+{
+    if (best_gap.first == -1 || best_gap.second == -1) {
+        return -1; // Invalid gap
+    }
+    
+    // Pick the center of the gap (as suggested in the image)
+    return best_gap.first + (best_gap.second - best_gap.first) / 2;
+};
         return;
     }
 
@@ -144,6 +141,17 @@ void FollowTheGapNode::lidar_callback(const sensor_msgs::msg::LaserScan::ConstSh
 
     // angle based speed
     float abs_angle = std::abs(steering_angle);
+
+void FollowTheGapNode::lidar_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg)
+{
+    auto ranges = preprocess_lidar(scan_msg);
+    draw_safety_bubble(scan_msg, ranges);
+    auto gaps = find_all_gaps(ranges);
+    auto best_gap = pick_best_gap(scan_msg, ranges, gaps);
+    int best_idx = pick_best_point(best_gap);
+                                            //skibidi milad
+    if (best_idx == -1) {
+        RCLCPP_WARN(this->get_logger(), "No valid gap found")
     float speed;
     if (abs_angle < 10.0 * M_PI / 180.0)      speed = 2.0f;
     else if (abs_angle < 20.0 * M_PI / 180.0) speed = 1.5f;
