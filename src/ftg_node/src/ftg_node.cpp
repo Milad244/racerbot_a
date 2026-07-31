@@ -1,8 +1,9 @@
 #include "ftg_node.hpp"
+#include <algorithm>
 using std::vector;
 
 
-FollowTheGapNode::FollowTheGapNode() : Node("follow_the_gap_node")
+FollowTheGapNode::FollowTheGapNode() : Node("follow_the_gap_node"),
     // tuning parameters
     max_lidar_range_(10.0),
     fov_half_angle_(M_PI / 2.0),
@@ -131,18 +132,7 @@ int FollowTheGapNode::pick_best_point(const std::pair<int, int>& best_gap)
     
     // Pick the center of the gap (as suggested in the image)
     return best_gap.first + (best_gap.second - best_gap.first) / 2;
-}
-
-void FollowTheGapNode::lidar_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg)
-{
-    auto ranges = preprocess_lidar(scan_msg);
-    extend_obstacles(scan_msg, ranges);
-    auto gaps = find_all_gaps(ranges);
-    auto best_gap = pick_best_gap(scan_msg, ranges, gaps);
-    int best_idx = pick_best_point(best_gap);
-                                            //skibidi milad
-    if (best_idx == -1) {
-        RCLCPP_WARN(this->get_logger(), "No valid gap found");
+};
         return;
     }
 
@@ -151,6 +141,17 @@ void FollowTheGapNode::lidar_callback(const sensor_msgs::msg::LaserScan::ConstSh
 
     // angle based speed
     float abs_angle = std::abs(steering_angle);
+
+void FollowTheGapNode::lidar_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg)
+{
+    auto ranges = preprocess_lidar(scan_msg);
+    draw_safety_bubble(scan_msg, ranges);
+    auto gaps = find_all_gaps(ranges);
+    auto best_gap = pick_best_gap(scan_msg, ranges, gaps);
+    int best_idx = pick_best_point(best_gap);
+                                            //skibidi milad
+    if (best_idx == -1) {
+        RCLCPP_WARN(this->get_logger(), "No valid gap found")
     float speed;
     if (abs_angle < 10.0 * M_PI / 180.0)      speed = 2.0f;
     else if (abs_angle < 20.0 * M_PI / 180.0) speed = 1.5f;

@@ -33,6 +33,13 @@ private:
     void extend_obstacles(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
         vector<float>& ranges);
 
+    /// @brief creates a safety bubble around closest obstacle
+    /// @param ranges preprocessed range vector to modify in place
+    /// @param scan_msg the scan data from the lidar
+    void draw_safety_bubble(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg, 
+                        std::vector<float>& ranges);
+
+    /// @brief find the index of the best point in the furthest valid gap
 /// @brief Find all gaps in the lidar ranges that are deeper than the minimum threshold
     /// @param ranges preprocessed and extended range vector
     /// @return a vector of start and end indices for each gap
