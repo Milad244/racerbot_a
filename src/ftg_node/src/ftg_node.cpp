@@ -1,8 +1,9 @@
 #include "ftg_node.hpp"
+#include <algorithm>
 using std::vector;
 
 
-FollowTheGapNode::FollowTheGapNode() : Node("follow_the_gap_node")
+FollowTheGapNode::FollowTheGapNode() : Node("follow_the_gap_node"),
     // tuning parameters
     max_lidar_range_(10.0),
     fov_half_angle_(M_PI / 2.0),
@@ -61,7 +62,40 @@ void FollowTheGapNode::extend_obstacles(const sensor_msgs::msg::LaserScan::Const
         prev_reading = ranges[i];
     }
 }
+//draw safety bubble around the closest point found. set all points within bubble to 0.
+void FollowTheGapNode::draw_safety_bubble(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
+                                          std::vector<float>& ranges)
+{
+    // Find closest obstacle (ignoring 0 ranges since 0 will already be avoided)
+    bool found_closest = false;
+    size_t closest_index = 0;
+    for (size_t i = 1; i < ranges.size(); ++i) {
+        if (ranges[i] != 0 && !found_closest) {
+            found_closest = true;
+            closest_index = i;
+        }
 
+        if (found_closest && ranges[i] != 0 && ranges[i] < ranges[closest_index]) {
+            closest_index = i;
+        }
+    }
+
+    if (!found_closest) return; // handle case where all ranges are 0
+
+    // Draw safety bubble by calculating theta for the arc made by r = closest point with s = car width
+    // width = 0.35 meters (as car width is 0.3 meters)
+    double theta = 0.35 / ranges[closest_index];
+    RCLCPP_INFO(this->get_logger(), "Range: %f", ranges[closest_index]);
+
+    size_t index_increment = static_cast<size_t>((theta / scan_msg->angle_increment) / 2.0); // Used on each side so divide by 2
+
+    size_t start = (closest_index > index_increment) ? closest_index - index_increment : 0;
+    size_t end = std::min(closest_index + index_increment, ranges.size());
+
+    for (size_t i = start; i < end; ++i) {
+        ranges[i] = 0.0f;
+    }
+}
 int FollowTheGapNode::find_best_gap(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
     const vector<float>& ranges)
 {
@@ -97,7 +131,7 @@ int FollowTheGapNode::find_best_gap(const sensor_msgs::msg::LaserScan::ConstShar
 void FollowTheGapNode::lidar_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg)
 {
     auto ranges = preprocess_lidar(scan_msg);
-    extend_obstacles(scan_msg, ranges);
+    draw_safety_bubble(scan_msg, ranges);
     int best_idx = find_best_gap(scan_msg, ranges);
                                             //skibidi milad
     if (best_idx == -1) {
