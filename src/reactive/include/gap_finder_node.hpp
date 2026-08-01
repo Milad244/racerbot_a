@@ -21,8 +21,6 @@ private:
     double fov_half_angle_;
     double minimum_gap_threshold_;
 
-    void print_ascii_scan(const std::vector<float>& ranges, float max_range, int target_index);
-    
     /// @brief Callback invoked each time the lidar completes a new scan.
     /// @param scan_msg Shared pointer to the incoming LaserScan message.
     void lidar_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg);
@@ -42,11 +40,11 @@ private:
     /// @param scan_msg Shared pointer to the incoming LaserScan message.
     /// @param ranges Ranges array (after obstacle extension) to search for the best gap.
     /// @return Indices into ranges corresponding to the furthest gap.
-    std::pair<int, int> find_furthest_gap(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg, std::vector<float> &ranges);
+    std::pair<int, int> find_furthest_gap(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg, const std::vector<float> &ranges);
 
     /// @brief Find the index of the furthest gap given, returns -1 if not found.
     /// @param ranges Ranges array (after obstacle extension) to search for the best gap.
     /// @param gap Pair of indices into ranges corresponding to the gap.
     /// @return Index into ranges corresponding to the furthest point in the given gap.
-    int find_furthest_point(std::vector<float> &ranges, std::pair<int, int> &gap);
+    int find_furthest_point(std::vector<float> &ranges, const std::pair<int, int> &gap);
 };

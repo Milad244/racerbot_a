@@ -10,7 +10,7 @@ GapFinderNode::GapFinderNode() : Node("gap_finder_node")
     this->declare_parameter("car_width_extended", 0.55);
     this->declare_parameter("disparity_threshold", 1.5);
     this->declare_parameter("fov_half_angle_deg", 90.0);
-    this->declare_parameter("minimum_gap_threshold", 0.0);
+    this->declare_parameter("minimum_gap_threshold", 0.001);
 
     // Read into member variables
     max_lidar_range_ = this->get_parameter("max_lidar_range").as_double();
@@ -42,8 +42,8 @@ void GapFinderNode::lidar_callback(const sensor_msgs::msg::LaserScan::ConstShare
     int furthest_point = find_furthest_point(ranges, gap);
 
     reactive::msg::Gap gap_msg;
-    gap_msg.angles.reserve(ranges.size());
-    gap_msg.ranges.reserve(ranges.size());
+    gap_msg.angles.reserve(gap.second - gap.first);
+    gap_msg.ranges.reserve(gap.second - gap.first);
 
     for (size_t i = gap.first; i < static_cast<size_t>(gap.second); ++i)
     {
@@ -111,7 +111,7 @@ void GapFinderNode::extend_obstacles(const sensor_msgs::msg::LaserScan::ConstSha
 }
 
 std::pair<int, int> GapFinderNode::find_furthest_gap(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
-                                                     vector<float> &ranges)
+                                                     const vector<float> &ranges)
 {
     int best_start = -1;
     int best_end = -1;
@@ -138,7 +138,7 @@ std::pair<int, int> GapFinderNode::find_furthest_gap(const sensor_msgs::msg::Las
         // Check if the gap is wide enough for the car to fit through,
         // using the closest range within the gap as the worst-case radius
         float min_range_in_gap = *std::min_element(ranges.begin() + gap_start, ranges.begin() + gap_end);
-        double theta = car_width_extended_ / min_range_in_gap;
+        double theta = 2.0 * std::atan2(car_width_extended_ / 2.0, min_range_in_gap);
         size_t min_index_width = static_cast<size_t>(theta / scan_msg->angle_increment);
 
         if ((gap_end - gap_start) < min_index_width)
@@ -161,7 +161,7 @@ std::pair<int, int> GapFinderNode::find_furthest_gap(const sensor_msgs::msg::Las
     return {best_start, best_end};
 }
 
-int GapFinderNode::find_furthest_point(vector<float> &ranges, std::pair<int, int> &gap) {
+int GapFinderNode::find_furthest_point(vector<float> &ranges, const std::pair<int, int> &gap) {
     if (gap.first == -1) return -1;
 
     int furthest = gap.first;
