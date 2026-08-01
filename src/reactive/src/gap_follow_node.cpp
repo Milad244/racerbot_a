@@ -40,7 +40,13 @@ void GapFollowNode::drive_best_point(const reactive::msg::Gap::ConstSharedPtr ga
     // Speed depends on target point range
     float velocity;
     float target_range = gap_msg->target_range;
-    if (target_range > 2)
+    if (target_range > 6)
+        velocity = 6.0f;
+    else if (target_range > 4)
+        velocity = 5.0f;
+    else if (target_range > 3)
+        velocity = 4.0f;
+    else if (target_range > 2)
         velocity = 3.0f;
     else if (target_range > 1)
         velocity = 2.0f;
@@ -78,7 +84,7 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
     Eigen::VectorXd theta(gap_msg->ranges.size());
     Eigen::VectorXd r(gap_msg->ranges.size());
 
-    for (int i = 0; i < gap_msg->ranges.size(); i++)
+    for (size_t i = 0; i < gap_msg->ranges.size(); i++)
     {
         // Convert polar coordinates to cartesian coordinates
         theta(i) = gap_msg->angles[i];
@@ -91,11 +97,9 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
     // Determine polynomial coefficients
     Eigen::VectorXd coefficients = fit_polynomial(theta, r);
 
-    double best_theta = compute_steering_angle(coefficients, theta, max_lookahead);
-    double steering_angle = std::clamp(steering_gain * best_theta, -max_steering_angle, max_steering_angle);
-    double absolute_angle = std::abs(steering_angle);
+    double steering_angle = compute_steering_angle(coefficients, theta, max_lookahead);
 
-    double velocity = angle_to_speed_function(absolute_angle);
+    double velocity = angle_to_speed_function(steering_angle);
 
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
     drive_msg.header.stamp = this->now();
@@ -165,11 +169,11 @@ double GapFollowNode::angle_to_speed_function(double angle)
     const double max_speed = 3.5;
     const double min_speed = 0.25;
 
-    const double a = -1.2;
-    const double b = 0.2;
-    const double c = 1.5;
+    const double a = -1.6;
+    const double b = 0.3;
+    const double c = 2.4;
 
-    double y = a * std::log(angle + b) + c; // current formula from Desmos tinkering <https://www.desmos.com/calculator/ijolz4pnpy>
+    double y = a * std::log(std::abs(angle) + b) + c; // current formula from Desmos tinkering <https://www.desmos.com/calculator/ijolz4pnpy>
     return std::clamp(y, min_speed, max_speed);
 }
 
