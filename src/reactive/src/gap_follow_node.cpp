@@ -40,20 +40,11 @@ void GapFollowNode::drive_best_point(const reactive::msg::Gap::ConstSharedPtr ga
     // Speed depends on target point range
     float velocity;
     float target_range = gap_msg->target_range;
-    if (target_range > 6)
-        velocity = 6.0f;
-    else if (target_range > 4)
-        velocity = 5.0f;
-    else if (target_range > 3)
-        velocity = 4.0f;
-    else if (target_range > 2)
-        velocity = 3.0f;
-    else if (target_range > 1)
-        velocity = 2.0f;
-    else if (target_range > 0.5)
-        velocity = 1.0f;
-    else
-        velocity = 0.5f;
+
+    double a = 0.5;
+    double b = 0.5;
+
+    velocity = std::clamp(a * target_range + b, min_speed, max_speed);
 
     // Publishing to drive
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
@@ -165,8 +156,6 @@ double GapFollowNode::compute_steering_angle(Eigen::VectorXd coefficients, Eigen
 
 double GapFollowNode::angle_to_speed_function(double angle)
 {
-    const double max_speed = 3.5;
-    const double min_speed = 0.25;
 
     const double a = -1.6;
     const double b = 1.0;

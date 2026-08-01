@@ -28,6 +28,9 @@ private:
     double max_steering_angle = DEG2RAD(90.0f);
     double filtered_steering_angle;
 
+    const double max_speed = 3.5;
+    const double min_speed = 0.25;
+
     /// @brief Callback invoked each time we find a valid gap from the laser scan.
     /// @param gap_msg Shared pointer to the incoming Gap message.
     void gap_callback(const reactive::msg::Gap::ConstSharedPtr gap_msg);
