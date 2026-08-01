@@ -40,7 +40,13 @@ void GapFollowNode::drive_best_point(const reactive::msg::Gap::ConstSharedPtr ga
     // Speed depends on target point range
     float velocity;
     float target_range = gap_msg->target_range;
-    if (target_range > 2)
+    if (target_range > 6)
+        velocity = 6.0f;
+    else if (target_range > 4)
+        velocity = 5.0f;
+    else if (target_range > 3)
+        velocity = 4.0f;
+    else if (target_range > 2)
         velocity = 3.0f;
     else if (target_range > 1)
         velocity = 2.0f;
@@ -87,9 +93,8 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
 
     double lookahead = std::clamp(lookahead_distance, 0.1, max_lookahead);
     double steering_angle = compute_steering_angle_simple(coefficients, lookahead);
-    double absolute_angle = std::abs(steering_angle);
 
-    double velocity = angle_to_speed_function(absolute_angle);
+    double velocity = angle_to_speed_function(steering_angle);
 
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
     drive_msg.header.stamp = this->now();
@@ -146,7 +151,7 @@ double GapFollowNode::compute_steering_angle_simple(Eigen::VectorXd coefficients
 
 double GapFollowNode::angle_to_speed_function(double angle)
 {
-    return -1.6 * std::log(angle + 0.3) + 2.4; // current formula from Desmos tinkering <https://www.desmos.com/calculator/ijolz4pnpy>
+    return -1.6 * std::log(std::abs(angle) + 0.3) + 2.4; // current formula from Desmos tinkering <https://www.desmos.com/calculator/ijolz4pnpy>
 }
 
 int main(int argc, char **argv)
