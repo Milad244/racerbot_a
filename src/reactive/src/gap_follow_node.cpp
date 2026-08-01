@@ -86,7 +86,6 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
 
     for (size_t i = 0; i < gap_msg->ranges.size(); i++)
     {
-        // Convert polar coordinates to cartesian coordinates
         theta(i) = gap_msg->angles[i];
         r(i) = gap_msg->ranges[i];
     }
