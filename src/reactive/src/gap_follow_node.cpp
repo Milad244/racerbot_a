@@ -89,13 +89,15 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
 
     double steering_angle = compute_steering_angle(coefficients, theta, max_lookahead);
 
-    double velocity = angle_to_speed_function(steering_angle);
+    double alpha = 0.3;
+    filtered_steering_angle = alpha * steering_angle + (1 - alpha) * filtered_steering_angle;
+    filtered_steering_angle = std::clamp(filtered_steering_angle, -max_steering_angle, max_steering_angle);
+
+    double velocity = angle_to_speed_function(filtered_steering_angle);
 
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
     drive_msg.header.stamp = this->now();
 
-    double alpha = 0.3;
-    filtered_steering_angle = alpha * steering_angle + (1 - alpha) * filtered_steering_angle;
     drive_msg.drive.steering_angle = filtered_steering_angle;
 
     drive_msg.drive.speed = velocity;
