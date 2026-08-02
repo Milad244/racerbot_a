@@ -18,18 +18,18 @@ private:
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr drive_pub_;
     rclcpp::Subscription<reactive::msg::Gap>::SharedPtr gap_sub_;
 
-    bool use_fallback_method;
+    // ROS2 parameters
+    bool use_fallback_method_ = false;
+    int degree_ = 2;
+    double steering_gain_ = 1.0;
+    double k_samples_ = 200;
+    double max_steering_angle_ = DEG2RAD(45.0f);
+    double max_speed_ = 3.5;
+    double min_speed_ = 0.25;
+    double hysteresis_alpha_ = 0.3;
+    double speed_curve_scale_ = 1.0;
 
-    // Least Squares parameters
-    int degree = 2;
-    double steering_gain = 1.0;
-    double k_samples = 200;
-
-    double max_steering_angle = DEG2RAD(90.0f);
-    double filtered_steering_angle;
-
-    const double max_speed = 3.5;
-    const double min_speed = 0.25;
+    double filtered_steering_angle_ = 0.0;
 
     /// @brief Callback invoked each time we find a valid gap from the laser scan.
     /// @param gap_msg Shared pointer to the incoming Gap message.
