@@ -173,7 +173,7 @@ double GapFollowNode::angle_to_speed_function(double angle)
     const double b = 1.0;
     const double c = 3.6;
 
-    double y = a * std::log(std::abs(angle) + b) + c; // current formula from Desmos tinkering <https://www.desmos.com/calculator/yeyvbi21nf>
+    double y = speed_curve_scale_ * (a * std::log(std::abs(angle) + b) + c); // current formula from Desmos tinkering <https://www.desmos.com/calculator/yeyvbi21nf>
     return std::clamp(y, min_speed_, max_speed_);
 }
 
