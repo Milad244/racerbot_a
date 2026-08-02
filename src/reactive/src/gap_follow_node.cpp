@@ -30,7 +30,7 @@ GapFollowNode::GapFollowNode() : Node("gap_follow_node")
     max_speed_ = this->get_parameter("max_speed").as_double();
     min_speed_ = this->get_parameter("min_speed").as_double();
     hysteresis_alpha_ = this->get_parameter("hysteresis_alpha").as_double();
-    speed_curve_scale_ this->get_parameter("speed_curve_scale").as_double();
+    speed_curve_scale_ = this->get_parameter("speed_curve_scale").as_double();
 }
 
 void GapFollowNode::gap_callback(const reactive::msg::Gap::ConstSharedPtr gap_msg)
