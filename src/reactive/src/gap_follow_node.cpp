@@ -14,18 +14,28 @@ GapFollowNode::GapFollowNode() : Node("gap_follow_node")
     this->declare_parameter("degree", 2);
     this->declare_parameter("steering_gain", 1.0);
     this->declare_parameter("k_samples", 200);
+    this->declare_parameter("max_steering_angle", 45.0);
+    this->declare_parameter("max_speed", 4);
+    this->declare_parameter("min_speed", 0.5);
+    this->declare_parameter("hysteresis_alpha", 0.3);
+    this->declare_parameter("speed_curve_scale", 1.0);
 
-    use_fallback_method = this->get_parameter("use_fallback_method").as_bool();
-    RCLCPP_INFO(this->get_logger(), "Using follow method: '%s'", use_fallback_method ? "drive_best_point" : "least_squares");
+    use_fallback_method_ = this->get_parameter("use_fallback_method").as_bool();
+    RCLCPP_INFO(this->get_logger(), "Using follow method: '%s'", use_fallback_method_ ? "drive_best_point" : "least_squares");
 
-    degree = this->get_parameter("degree").as_int();
-    steering_gain = this->get_parameter("steering_gain").as_double();
-    k_samples = this->get_parameter("k_samples").as_int();
+    degree_ = this->get_parameter("degree").as_int();
+    steering_gain_ = this->get_parameter("steering_gain").as_double();
+    k_samples_ = this->get_parameter("k_samples").as_int();
+    max_steering_angle_ = DEG2RAD(this->get_parameter("max_steering_angle").as_double());
+    max_speed_ = this->get_parameter("max_speed").as_double();
+    min_speed_ = this->get_parameter("min_speed").as_double();
+    hysteresis_alpha_ = this->get_parameter("hysteresis_alpha").as_double();
+    speed_curve_scale_ = this->get_parameter("speed_curve_scale").as_double();
 }
 
 void GapFollowNode::gap_callback(const reactive::msg::Gap::ConstSharedPtr gap_msg)
 {
-    if (use_fallback_method)
+    if (use_fallback_method_)
     {
         drive_best_point(gap_msg);
     }
@@ -44,7 +54,7 @@ void GapFollowNode::drive_best_point(const reactive::msg::Gap::ConstSharedPtr ga
     double a = 0.5;
     double b = 0.5;
 
-    velocity = std::clamp(a * target_range + b, min_speed, max_speed);
+    velocity = std::clamp(a * target_range + b, min_speed_, max_speed_);
 
     // Publishing to drive
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
@@ -57,9 +67,9 @@ void GapFollowNode::drive_best_point(const reactive::msg::Gap::ConstSharedPtr ga
 void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSharedPtr gap_msg)
 {
 
-    if (static_cast<int>(gap_msg->ranges.size()) < degree + 1)
+    if (static_cast<int>(gap_msg->ranges.size()) < degree_ + 1)
     {
-        RCLCPP_WARN(this->get_logger(), "Not enough gap points to fit degree-%d polynomial. Falling back to drive_best_point", degree);
+        RCLCPP_WARN(this->get_logger(), "Not enough gap points to fit degree-%d polynomial. Falling back to drive_best_point", degree_);
         drive_best_point(gap_msg);
         return;
     }
@@ -89,16 +99,16 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
 
     double steering_angle = compute_steering_angle(coefficients, theta, max_lookahead);
 
-    double alpha = 0.3;
-    filtered_steering_angle = alpha * steering_angle + (1 - alpha) * filtered_steering_angle;
-    filtered_steering_angle = std::clamp(filtered_steering_angle, -max_steering_angle, max_steering_angle);
+    // hysteresis to ease between turning angles
+    filtered_steering_angle_ = hysteresis_alpha_ * steering_angle + (1 - hysteresis_alpha_) * filtered_steering_angle_;
+    filtered_steering_angle_ = std::clamp(filtered_steering_angle_, -max_steering_angle_, max_steering_angle_);
 
-    double velocity = angle_to_speed_function(filtered_steering_angle);
+    double velocity = angle_to_speed_function(filtered_steering_angle_);
 
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
     drive_msg.header.stamp = this->now();
 
-    drive_msg.drive.steering_angle = filtered_steering_angle;
+    drive_msg.drive.steering_angle = filtered_steering_angle_;
 
     drive_msg.drive.speed = velocity;
     drive_pub_->publish(drive_msg);
@@ -107,13 +117,13 @@ void GapFollowNode::least_squares_pathfinding(const reactive::msg::Gap::ConstSha
 Eigen::VectorXd GapFollowNode::fit_polynomial(const Eigen::VectorXd &x, const Eigen::VectorXd &y)
 {
     int n = x.size();
-    Eigen::MatrixXd A(n, degree + 1);
+    Eigen::MatrixXd A(n, degree_ + 1);
 
     // Build Vandermonde matrix
     for (int i = 0; i < n; ++i)
     {
         double val = 1.0;
-        for (int j = 0; j <= degree; ++j)
+        for (int j = 0; j <= degree_; ++j)
         {
             A(i, j) = val;
             val *= x(i);
@@ -129,7 +139,7 @@ Eigen::VectorXd GapFollowNode::fit_polynomial(const Eigen::VectorXd &x, const Ei
 double GapFollowNode::get_curve_output(double x, Eigen::VectorXd coefficients)
 {
     double y = 0.0;
-    for (int i = 0; i < degree + 1; i++) // make sure to factor in constant term
+    for (int i = 0; i < degree_ + 1; i++) // make sure to factor in constant term
     {
         y += coefficients[i] * (std::pow(x, i));
     }
@@ -143,9 +153,9 @@ double GapFollowNode::compute_steering_angle(Eigen::VectorXd coefficients, Eigen
     double best_theta = theta_min;
     double best_range = -std::numeric_limits<double>::max();
 
-    for (int i = 0; i <= k_samples; i++)
+    for (int i = 0; i <= k_samples_; i++)
     {
-        double t = theta_min + (theta_max - theta_min) * i / k_samples;
+        double t = theta_min + (theta_max - theta_min) * i / k_samples_;
         double predicted_r = get_curve_output(t, coefficients);
         if (predicted_r > best_range && predicted_r < max_lookahead)
         {
@@ -163,8 +173,8 @@ double GapFollowNode::angle_to_speed_function(double angle)
     const double b = 1.0;
     const double c = 3.6;
 
-    double y = a * std::log(std::abs(angle) + b) + c; // current formula from Desmos tinkering <https://www.desmos.com/calculator/yeyvbi21nf>
-    return std::clamp(y, min_speed, max_speed);
+    double y = speed_curve_scale_ * (a * std::log(std::abs(angle) + b) + c); // current formula from Desmos tinkering <https://www.desmos.com/calculator/yeyvbi21nf>
+    return std::clamp(y, min_speed_, max_speed_);
 }
 
 int main(int argc, char **argv)
