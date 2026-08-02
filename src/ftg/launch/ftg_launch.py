@@ -6,7 +6,7 @@ def generate_launch_description():
     return LaunchDescription([
         # Launch follow the gap
         Node(
-            package='ftg_node',
+            package='ftg',
             executable='ftg_node',
             name='ftg_node',
             output='screen',
