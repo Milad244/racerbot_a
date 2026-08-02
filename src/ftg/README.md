@@ -2,6 +2,12 @@
 
 Description TODO
 
+## Building
+```bash
+cd /racerbot_ws
+colcon build --packages-select ftg
+```
+
 ## Launching in real life
 
 ```bash
@@ -13,3 +19,9 @@ ros2 launch ftg ftg_launch.py
 ```bash
 ros2 launch ftg ftg_launch.py
 ```
+
+## Safety Node
+
+Disable the deadman gate with `enable_deadman:=false`.
+
+Disable TTC braking with `enable_ttc:=false`.
