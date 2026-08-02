@@ -18,7 +18,6 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_scan_subscriber;
     double max_lidar_range_;
     double fov_half_angle_;
-    double disparity_threshold_;
     double car_width_;
     double minimum_gap_threshold_;
 

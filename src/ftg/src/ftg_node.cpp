@@ -1,17 +1,21 @@
 #include "ftg_node.hpp"
-#include <algorithm>
 using std::vector;
 
 
-FollowTheGapNode::FollowTheGapNode() : Node("follow_the_gap_node"),
-    // tuning parameters
-    max_lidar_range_(10.0),
-    fov_half_angle_(M_PI / 2.0),
-    disparity_threshold_(0.4),
-    car_width_(0.35),
-    minimum_gap_threshold_(1.0)
+FollowTheGapNode::FollowTheGapNode() : Node("follow_the_gap_node")
 {
     RCLCPP_INFO(this->get_logger(), "Follow the gap node started");
+
+   // ROS2 parameters
+    this->declare_parameter("max_lidar_range", 10.0);
+    this->declare_parameter("fov_half_angle_deg", 90.0);
+    this->declare_parameter("car_width", 0.35);
+    this->declare_parameter("minimum_gap_threshold", 1.0);
+
+    max_lidar_range_ = this->get_parameter("max_lidar_range").as_double();
+    fov_half_angle_ = this->get_parameter("fov_half_angle_deg").as_double() * M_PI / 180.0;
+    car_width_ = this->get_parameter("car_width").as_double();
+    minimum_gap_threshold_ = this->get_parameter("minimum_gap_threshold").as_double();
 
     this->drive_msg_publisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>("drive", 10);
     this->laser_scan_subscriber = this->create_subscription<sensor_msgs::msg::LaserScan>(
@@ -19,7 +23,7 @@ FollowTheGapNode::FollowTheGapNode() : Node("follow_the_gap_node"),
         10,
         std::bind(&FollowTheGapNode::lidar_callback, this, std::placeholders::_1));
 }
-//preprocess (PP) lidar
+
 vector<float> FollowTheGapNode::preprocess_lidar(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg)
 {
     vector<float> ranges = scan_msg->ranges;
@@ -37,36 +41,44 @@ vector<float> FollowTheGapNode::preprocess_lidar(const sensor_msgs::msg::LaserSc
 
     return ranges;
 }
-void FollowTheGapNode::extend_obstacles(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
+
+void FollowTheGapNode::draw_safety_bubble(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
     vector<float>& ranges)
 {
-    if (ranges.empty()) return;
-
-    float prev_reading = ranges[0];
-    for (size_t i = 0; i < ranges.size(); ++i) {
-        float current_reading = ranges[i];
-
-        if (std::abs(prev_reading - current_reading) > disparity_threshold_) {
-            float closer_range = std::min(prev_reading, current_reading);
-
-            double theta = car_width_ / closer_range;
-            size_t index_increment = static_cast<size_t>((theta / scan_msg->angle_increment) / 2.0);
-
-            size_t start = (i > index_increment) ? i - index_increment : 0;
-            size_t end = std::min(i + index_increment + 1, ranges.size());
-
-            for (size_t j = start; j < end; ++j) {
-                ranges[j] = std::min(ranges[j], closer_range);
-            }
+     // Find closest obstacle (ignoring 0 ranges since 0 will already be avoided)
+    bool found_closest = false;
+    size_t closest_index;
+    for (size_t i = 1; i < ranges.size(); ++i) {
+        if (ranges[i] != 0 && !found_closest) {
+            found_closest = true;
+            closest_index = i;
         }
-        prev_reading = ranges[i];
+
+        if (found_closest && ranges[i] != 0 && ranges[i] < ranges[closest_index]) {
+            closest_index = i;
+        }
+    }
+
+    if (!found_closest) return; // handle case where all ranges are 0
+
+    // Draw safety buble by calculating theta for the arc made by r = closest point with s = car width
+
+    double theta = 2.0 * std::atan2(car_width_ / 2.0, ranges[closest_index]);
+
+    size_t index_increment = (theta / scan_msg->angle_increment) / 2; // Used on each side so divide by 2
+
+    size_t start = (closest_index > index_increment) ? closest_index - index_increment : 0;
+
+    size_t end = std::min(closest_index + index_increment, ranges.size());
+
+    for (size_t i = start; i < end; ++i) {
+        ranges[i] = 0;
     }
 }
 
-// 1. Find all gaps
-std::vector<std::pair<int, int>> FollowTheGapNode::find_all_gaps(const vector<float>& ranges)
+vector<std::pair<int, int>> FollowTheGapNode::find_all_gaps(const vector<float>& ranges)
 {
-    std::vector<std::pair<int, int>> gaps;
+    vector<std::pair<int, int>> gaps;
     size_t i = 0;
     
     while (i < ranges.size()) {
@@ -87,7 +99,6 @@ std::vector<std::pair<int, int>> FollowTheGapNode::find_all_gaps(const vector<fl
     return gaps;
 }
 
-// 2. Go through each gap and pick the best gap
 std::pair<int, int> FollowTheGapNode::pick_best_gap(
     const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
     const vector<float>& ranges, 
@@ -123,7 +134,6 @@ std::pair<int, int> FollowTheGapNode::pick_best_gap(
     return best_gap;
 }
 
-// 3. Go through the best gap and pick the best point
 int FollowTheGapNode::pick_best_point(const std::pair<int, int>& best_gap)
 {
     if (best_gap.first == -1 || best_gap.second == -1) {
@@ -132,15 +142,7 @@ int FollowTheGapNode::pick_best_point(const std::pair<int, int>& best_gap)
     
     // Pick the center of the gap (as suggested in the image)
     return best_gap.first + (best_gap.second - best_gap.first) / 2;
-};
-        return;
-    }
-
-    double steering_angle = scan_msg->angle_min + best_idx * scan_msg->angle_increment;
-    steering_angle = std::clamp(steering_angle, -0.4189, 0.4189);
-
-    // angle based speed
-    float abs_angle = std::abs(steering_angle);
+}
 
 void FollowTheGapNode::lidar_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg)
 {
@@ -149,17 +151,24 @@ void FollowTheGapNode::lidar_callback(const sensor_msgs::msg::LaserScan::ConstSh
     auto gaps = find_all_gaps(ranges);
     auto best_gap = pick_best_gap(scan_msg, ranges, gaps);
     int best_idx = pick_best_point(best_gap);
-                                            //skibidi milad
-    if (best_idx == -1) {
-        RCLCPP_WARN(this->get_logger(), "No valid gap found")
+
+    if (best_idx == -1)
+    {
+        RCLCPP_WARN(this->get_logger(), "No valid gap found");
+        return;
+    }
+
+    float steering_angle = scan_msg->angle_min + scan_msg->angle_increment * best_idx;
+    float abs_angle = std::abs(steering_angle);
+
     float speed;
-    if (abs_angle < 10.0 * M_PI / 180.0)      speed = 2.0f;
+    if (abs_angle < 10.0 * M_PI / 180.0) speed = 2.0f;
     else if (abs_angle < 20.0 * M_PI / 180.0) speed = 1.5f;
-    else                                        speed = 0.5f;
+    else speed = 0.5f;
 
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
     drive_msg.header.stamp = scan_msg->header.stamp;
-    drive_msg.drive.steering_angle = static_cast<float>(steering_angle);
+    drive_msg.drive.steering_angle = steering_angle;
     drive_msg.drive.speed = speed;
     drive_msg_publisher->publish(drive_msg);
 }
