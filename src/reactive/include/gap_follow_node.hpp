@@ -5,6 +5,7 @@
 #include "reactive/msg/gap.hpp"
 
 #include <Eigen/Dense>
+#include <limits>
 
 #define DEG2RAD(x) x *(M_PI / 180.0)
 
@@ -22,9 +23,13 @@ private:
     // Least Squares parameters
     int degree = 2;
     double steering_gain = 1.0;
-    double lookahead_distance = 1.5; // meters
+    double k_samples = 200;
 
     double max_steering_angle = DEG2RAD(90.0f);
+    double filtered_steering_angle;
+
+    const double max_speed = 3.5;
+    const double min_speed = 0.25;
 
     /// @brief Callback invoked each time we find a valid gap from the laser scan.
     /// @param gap_msg Shared pointer to the incoming Gap message.
@@ -38,12 +43,6 @@ private:
     /// @param gap_msg Shared pointer to the incoming Gap message.
     void least_squares_pathfinding(const reactive::msg::Gap::ConstSharedPtr gap_msg);
 
-    /// @brief Converts a set of polar coordinates to Cartesian coordinates
-    /// @param r radius of coordinate
-    /// @param theta angle of coordinate (in radians)
-    /// @returns The Cartesian coordinate
-    std::pair<double, double> polar_to_cartesian(double r, double theta);
-
     /// @brief Determine coefficients for the best fitting curve, given a set of inputs (X coordinates) and outputs (Y coordinates)
     /// @param x Vector of X coordinates
     /// @param y Vector of Y coordinates
@@ -56,11 +55,12 @@ private:
     /// @returns The output value 'y'
     double get_curve_output(double x, Eigen::VectorXd coefficients);
 
-    /// @brief Simple method to determine steering angle based on coefficients that were calculated
+    /// @brief Determine steering angle based on coefficients that were calculated
     /// @param coefficients Coefficients of the function, ordered from lowest degree to highest degree
-    /// @param target_x How far ahead the car should look on the curve
+    /// @param theta Vector of angles in the gap
+    /// @param max_lookahead The maximum lookahead distance that the value should be clamped too
     /// @returns The angle the car should steer
-    double compute_steering_angle_simple(Eigen::VectorXd coefficients, double target_x);
+    double compute_steering_angle(Eigen::VectorXd coefficients, Eigen::VectorXd theta, double max_lookahead);
 
     /// @brief The mathematical function that determines the car's speed based on the target_angle
     /// @param angle The target angle

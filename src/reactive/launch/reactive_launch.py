@@ -29,10 +29,10 @@ def generate_launch_description():
         default_value="1.0",
         description="How aggresive the car should steer towards the curve",
     )
-    lookahead_distance = DeclareLaunchArgument(
-            "lookahead_distance",
-            default_value="1.5",
-            description="How far ahead of a point on the curve the car should steer towards",
+    k_samples = DeclareLaunchArgument(
+        "k_samples",
+        default_value="200",
+        description="Number of samples used to determine most optimal steering angle",
     )
 
     return LaunchDescription(
@@ -41,7 +41,7 @@ def generate_launch_description():
             use_fallback_follow_method,
             least_squares_degree,
             steering_gain,
-            lookahead_distance,
+            k_samples,
             # Launch gap_finder_node
             Node(
                 package="reactive",
@@ -64,7 +64,7 @@ def generate_launch_description():
                         ),
                         "degree": LaunchConfiguration("least_squares_degree"),
                         "steering_gain": LaunchConfiguration("steering_gain"),
-                        "lookahead_distance": LaunchConfiguration("lookahead_distance"),
+                        "k_samples": LaunchConfiguration("k_samples"),
                     }
                 ],
             ),
