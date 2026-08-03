@@ -35,9 +35,13 @@ vector<float> FollowTheGapNode::preprocess_lidar(const sensor_msgs::msg::LaserSc
         ranges[i] = std::min(ranges[i], static_cast<float>(max_lidar_range_));
     }
 
+    vector<float> smooth = ranges;
+
     for (size_t i = 1; i < ranges.size() - 1; ++i) {
-        ranges[i] = (ranges[i-1] + ranges[i] + ranges[i+1]) / 3.0f;
+        smooth[i] = (ranges[i-1] + ranges[i] + ranges[i+1]) / 3.0f;
     }
+
+    ranges = smooth;
 
     return ranges;
 }
