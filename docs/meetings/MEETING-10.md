@@ -25,7 +25,7 @@
     - Active Software Chat [x]
     - Active Contributions []
 - Maryam Mohsen: Finished Lecture 5, Lab 3.
-    - Active Software Chat []
+    - Active Software Chat [x]
     - Active Contributions []
 - Nathan Jacobson: Finished Lecture 6, Lab 4.
     - Active Software Chat [x]
@@ -41,4 +41,4 @@
     - Active Contributions []
 
 ## Topic: Next Steps | From: Milad
-- Setting up the car & figuring out what car we are getting
+- Finishing up our reactive and ftg nodes to test on the car.
