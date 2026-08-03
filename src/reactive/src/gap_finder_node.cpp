@@ -10,7 +10,7 @@ GapFinderNode::GapFinderNode() : Node("gap_finder_node")
     this->declare_parameter("car_width_extended", 0.55);
     this->declare_parameter("disparity_threshold", 1.5);
     this->declare_parameter("fov_half_angle_deg", 90.0);
-    this->declare_parameter("minimum_gap_threshold", 0.001);
+    this->declare_parameter("minimum_gap_threshold", 0.1);
 
     // Read into member variables
     max_lidar_range_ = this->get_parameter("max_lidar_range").as_double();

@@ -12,6 +12,12 @@ def generate_launch_description():
         description="Whether the deadman button gate is enforced by safety_node",
     )
 
+    enable_ttc_arg = DeclareLaunchArgument(
+        "enable_ttc",
+        default_value="true",
+        description="Whether the ttc braking is enforced by safety_node",
+    )
+
     use_fallback_follow_method = DeclareLaunchArgument(
         "use_fallback_follow_method",
         default_value="false",
@@ -69,6 +75,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             enable_deadman_arg,
+            enable_ttc_arg,
             use_fallback_follow_method,
             least_squares_degree,
             steering_gain,
@@ -117,7 +124,12 @@ def generate_launch_description():
                 executable="safety_node",
                 name="safety_node",
                 output="screen",
-                parameters=[{"enable_deadman": LaunchConfiguration("enable_deadman")}],
+                parameters=[
+                    {
+                        "enable_deadman": LaunchConfiguration("enable_deadman"),
+                        "enable_ttc":  LaunchConfiguration("enable_ttc")
+                    }
+                ],
             ),
         ]
     )
