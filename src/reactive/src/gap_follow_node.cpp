@@ -15,7 +15,7 @@ GapFollowNode::GapFollowNode() : Node("gap_follow_node")
     this->declare_parameter("steering_gain", 1.0);
     this->declare_parameter("k_samples", 200);
     this->declare_parameter("max_steering_angle", 45.0);
-    this->declare_parameter("max_speed", 4);
+    this->declare_parameter("max_speed", 4.0);
     this->declare_parameter("min_speed", 0.5);
     this->declare_parameter("hysteresis_alpha", 0.3);
     this->declare_parameter("speed_curve_scale", 1.0);
@@ -51,10 +51,29 @@ void GapFollowNode::drive_best_point(const reactive::msg::Gap::ConstSharedPtr ga
     float velocity;
     float target_range = gap_msg->target_range;
 
-    double a = 0.5;
-    double b = 0.5;
+    /* Slower speed at small range
+    double min_range = 0.5;
+    double max_range = 4.0;
 
-    velocity = std::clamp(a * target_range + b, min_speed_, max_speed_);
+    double t = (target_range - min_range) / (max_range - min_range);
+    t = std::clamp(t, 0.0, 1.0);
+
+    velocity = static_cast<float>(min_speed_ + (t * t) * (max_speed_ - min_speed_));
+    */
+
+    // Step linear
+    if (target_range > 4.0f)
+        velocity = max_speed_;
+    else if (target_range > 3.0f)
+        velocity = 4.0f;
+    else if (target_range > 2.0f)
+        velocity = 3.0f;
+    else if (target_range > 1.0f)
+        velocity = 2.0f;
+    else if (target_range > 0.5)
+        velocity = 1.0f;
+    else
+        velocity = min_speed_;
 
     // Publishing to drive
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
