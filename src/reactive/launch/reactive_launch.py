@@ -50,7 +50,7 @@ def generate_launch_description():
 
     max_speed = DeclareLaunchArgument(
         "max_speed",
-        default_value="4",
+        default_value="4.0",
         description="Maximum forward speed allowed for the gap follower in meters per second",
     )
 
