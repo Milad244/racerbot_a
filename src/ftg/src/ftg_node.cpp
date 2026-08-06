@@ -9,7 +9,7 @@ FollowTheGapNode::FollowTheGapNode() : Node("follow_the_gap_node")
    // ROS2 parameters
     this->declare_parameter("max_lidar_range", 10.0);
     this->declare_parameter("fov_half_angle_deg", 90.0);
-    this->declare_parameter("car_width", 0.35);
+    this->declare_parameter("car_width", 0.4);
     this->declare_parameter("minimum_gap_threshold", 1.0);
 
     max_lidar_range_ = this->get_parameter("max_lidar_range").as_double();
@@ -166,9 +166,27 @@ void FollowTheGapNode::lidar_callback(const sensor_msgs::msg::LaserScan::ConstSh
     float abs_angle = std::abs(steering_angle);
 
     float speed;
-    if (abs_angle < 10.0 * M_PI / 180.0) speed = 2.0f;
-    else if (abs_angle < 20.0 * M_PI / 180.0) speed = 1.5f;
-    else speed = 0.5f;
+
+    // --- Angle-based factor ---
+    double max_angle = 30.0 * M_PI / 180.0; // angle at/beyond which speed hits its minimum
+    double min_angle_speed = 0.5;
+    double max_angle_speed = 4.0;
+
+    double t_angle = std::clamp(abs_angle / max_angle, 0.0, 1.0);
+    double angle_speed = max_angle_speed - t_angle * (max_angle_speed - min_angle_speed);
+
+    // --- Range-based factor ---
+    double target_range = static_cast<float>(ranges[best_idx]);
+    double min_range = 0.5;  // range at/below which speed hits its minimum
+    double max_range = 6.0;  // range at/above which speed hits its maximum
+    double min_range_speed = 0.5;
+    double max_range_speed = 4.0;
+
+    double t_range = std::clamp((target_range - min_range) / (max_range - min_range), 0.0, 1.0);
+    double range_speed = min_range_speed + t_range * (max_range_speed - min_range_speed);
+
+    // --- Combine: take the more conservative (lower) of the two ---
+    speed = static_cast<float>(std::min(angle_speed, range_speed));
 
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
     drive_msg.header.stamp = scan_msg->header.stamp;
