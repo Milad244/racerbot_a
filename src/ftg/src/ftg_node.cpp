@@ -178,7 +178,7 @@ void FollowTheGapNode::lidar_callback(const sensor_msgs::msg::LaserScan::ConstSh
     // --- Range-based factor ---
     double target_range = static_cast<float>(ranges[best_idx]);
     double min_range = 0.5;  // range at/below which speed hits its minimum
-    double max_range = 6.0;  // range at/above which speed hits its maximum
+    double max_range = 4.0;  // range at/above which speed hits its maximum
     double min_range_speed = 0.5;
     double max_range_speed = 4.0;
 
@@ -186,7 +186,7 @@ void FollowTheGapNode::lidar_callback(const sensor_msgs::msg::LaserScan::ConstSh
     double range_speed = min_range_speed + t_range * (max_range_speed - min_range_speed);
 
     // --- Combine: take the more conservative (lower) of the two ---
-    speed = static_cast<float>(std::min(angle_speed, range_speed));
+    speed = static_cast<float>(std::min(angle_speed, range_speed) * 1.2);
 
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
     drive_msg.header.stamp = scan_msg->header.stamp;
