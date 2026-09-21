@@ -38,7 +38,8 @@ Contains notes and learnings from testing in simulation, on the car, and from le
 
 ### Disparity Extender (DE)
 
-(No notes yet.)
+- Decreasing the speed caused the car to crash into more corners. Added saftey bubble to try and counteract this. Good
+
 
 ### Least Squares
 

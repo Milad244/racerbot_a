@@ -15,6 +15,7 @@ private:
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr drive_pub_;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_scan_sub_;
     double max_lidar_range_;
+    double car_width_;
     double car_width_extended_;
     double disparity_threshold_;
     double fov_half_angle_;
@@ -36,6 +37,12 @@ private:
     /// @param scan_msg Shared pointer to the incoming LaserScan message.
     /// @param ranges Preprocessed range values to mutate in place, applying disparity extension.
     void extend_obstacles(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg, std::vector<float> &ranges);
+
+    /// @brief creates a safety bubble around closest obstacle
+    /// @param ranges preprocessed range vector to modify in place
+    /// @param scan_msg the scan data from the lidar
+    void draw_safety_bubble(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg, 
+                        std::vector<float>& ranges);
 
     /// @brief Finds the indices of the furthest gap of the ranges array to steer toward, returns -1 if not found.
     /// @param scan_msg Shared pointer to the incoming LaserScan message.

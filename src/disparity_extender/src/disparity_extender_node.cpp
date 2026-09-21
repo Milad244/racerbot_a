@@ -7,6 +7,7 @@ DisparityExtenderNode::DisparityExtenderNode() : Node("disparity_extender_node")
 
     // Declare with a default value
     this->declare_parameter("max_lidar_range", 25.0);
+    this->declare_parameter("car_width", 0.4);
     this->declare_parameter("car_width_extended", 0.55);
     this->declare_parameter("disparity_threshold", 1.0);
     this->declare_parameter("fov_half_angle_deg", 90.0);
@@ -16,6 +17,7 @@ DisparityExtenderNode::DisparityExtenderNode() : Node("disparity_extender_node")
 
     // Read into member variables
     max_lidar_range_ = this->get_parameter("max_lidar_range").as_double();
+    car_width_ = this->get_parameter("car_width").as_double();
     car_width_extended_ = this->get_parameter("car_width_extended").as_double();
     disparity_threshold_ = this->get_parameter("disparity_threshold").as_double();
     fov_half_angle_ = this->get_parameter("fov_half_angle_deg").as_double() * M_PI / 180.0;
@@ -35,6 +37,7 @@ void DisparityExtenderNode::lidar_callback(const sensor_msgs::msg::LaserScan::Co
 {
     auto ranges = preprocess_lidar(scan_msg);
     extend_obstacles(scan_msg, ranges);
+    draw_safety_bubble(scan_msg, ranges);
 
     auto gap = find_furthest_gap(scan_msg, ranges);
 
@@ -101,6 +104,40 @@ void DisparityExtenderNode::extend_obstacles(const sensor_msgs::msg::LaserScan::
         }
 
         prev_reading = current_reading; // compare against raw values, not mutated output
+    }
+}
+
+void DisparityExtenderNode::draw_safety_bubble(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg,
+    vector<float>& ranges)
+{
+     // Find closest obstacle (ignoring 0 ranges since 0 will already be avoided)
+    bool found_closest = false;
+    size_t closest_index;
+    for (size_t i = 1; i < ranges.size(); ++i) {
+        if (ranges[i] != 0 && !found_closest) {
+            found_closest = true;
+            closest_index = i;
+        }
+
+        if (found_closest && ranges[i] != 0 && ranges[i] < ranges[closest_index]) {
+            closest_index = i;
+        }
+    }
+
+    if (!found_closest) return; // handle case where all ranges are 0
+
+    // Draw safety buble by calculating theta for the arc made by r = closest point with s = car width
+
+    double theta = 2.0 * std::atan2(car_width_ / 2.0, ranges[closest_index]);
+
+    size_t index_increment = (theta / scan_msg->angle_increment) / 2; // Used on each side so divide by 2
+
+    size_t start = (closest_index > index_increment) ? closest_index - index_increment : 0;
+
+    size_t end = std::min(closest_index + index_increment, ranges.size());
+
+    for (size_t i = start; i < end; ++i) {
+        ranges[i] = 0;
     }
 }
 
@@ -189,15 +226,17 @@ void DisparityExtenderNode::drive_best_point(const float range, const float stee
     if (range > 4.0f)
         velocity = max_speed_;
     else if (range > 3.0f)
-        velocity = 4.0f;
-    else if (range > 2.0f)
         velocity = 3.0f;
-    else if (range > 1.0f)
+    else if (range > 2.0f)
         velocity = 2.0f;
-    else if (range > 0.5)
+    else if (range > 1.0f)
         velocity = 1.0f;
+    else if (range > 0.5)
+        velocity = 0.5f;
     else
         velocity = min_speed_;
+
+    velocity = std::clamp(velocity, static_cast<float>(min_speed_), static_cast<float>(max_speed_));
 
     // Publishing to drive
     ackermann_msgs::msg::AckermannDriveStamped drive_msg;
