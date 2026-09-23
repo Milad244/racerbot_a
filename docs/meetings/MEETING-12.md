@@ -32,10 +32,10 @@
     - Active Software Chat []
     - Active Contributions []
 
-## Topic: Content  | From: Milad
+## Topic: Content | From: Milad
 - Lecture 7 & 8 Kahoot
 - Discussing how to set up `slam_toolbox` and `particle_filter`
 
-## Topic: Next  | From: Milad
+## Topic: Next Steps | From: Milad
 - Setting up SLAM and PF
 - Improving car speed & steering
