@@ -32,5 +32,9 @@
     - Active Software Chat []
     - Active Contributions []
 
-## Topic: Next Steps | From: Milad
+## Topic: Content  | From: Milad
 - Giving in-person lecture on material from lecture 7 and 8.
+
+## Topic: Next  | From: Milad
+- Setting up SLAM and PF
+- Improving car speed & steering
