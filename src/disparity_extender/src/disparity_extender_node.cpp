@@ -14,6 +14,7 @@ DisparityExtenderNode::DisparityExtenderNode() : Node("disparity_extender_node")
     this->declare_parameter("minimum_gap_threshold", 0.1);
     this->declare_parameter("max_speed", 3.5);
     this->declare_parameter("min_speed", 0.5);
+    this->declare_parameter("alpha", 0.4);
 
     // Read into member variables
     max_lidar_range_ = this->get_parameter("max_lidar_range").as_double();
@@ -24,6 +25,7 @@ DisparityExtenderNode::DisparityExtenderNode() : Node("disparity_extender_node")
     minimum_gap_threshold_ = this->get_parameter("minimum_gap_threshold").as_double();
     max_speed_ = this->get_parameter("max_speed").as_double();
     min_speed_ = this->get_parameter("min_speed").as_double();
+    alpha_ = this->get_parameter("alpha").as_double();
 
     drive_pub_ = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>("drive", 10);
 
@@ -209,33 +211,41 @@ int DisparityExtenderNode::find_furthest_point(vector<float> &ranges, const std:
 
 void DisparityExtenderNode::drive_best_point(const float range, const float steering_angle)
 {
-    // Speed depends on target point range
-    float velocity;
+    // Speed is the lower of two limits: slow down for sharp turns, and slow down when the target point is close.
 
-    /* Slower speed at small range
-    double min_range = 0.5;
-    double max_range = 4.0;
+    // Tuning constants
+    const float wheelbase      = 0.33f;  // [m] distance between front and rear axles
+    const float max_steer      = 0.40f;  // [rad] physical steering limit of the car
+    const float max_lateral_acc = 4.0f;  // [m/s^2] how hard we allow cornering (lower = slower turns)
+    const float max_brake_acc  = 3.0f;   // [m/s^2] how hard the car can brake
+    const float stop_margin    = 0.3f;   // [m] distance to keep from the target point
 
-    double t = (range - min_range) / (max_range - min_range);
-    t = std::clamp(t, 0.0, 1.0);
+    // Clamp steering to what the car can actually do
+    float steer = std::clamp(steering_angle, -max_steer, max_steer);
+    steer = static_cast<float>(alpha_) * steer + (1.0f - alpha_) * prev_steer_;
+    prev_steer_ = steer;
 
-    velocity = static_cast<float>(min_speed_ + (t * t) * (max_speed_ - min_speed_));
-    */
+    // Limit 1: Turning speed
+    // Turn radius R = wheelbase / tan(steer).
+    // Lateral acceleration = v^2 / R, so the max speed that keeps it under
+    // max_lateral_acc is v = sqrt(max_lateral_acc * R).
+    // Driving straight -> R is huge -> no limit.
+    float abs_tan = std::tan(std::abs(steer));
+    float v_turn = max_speed_;
+    if (abs_tan > 1e-3f)
+    {
+        float turn_radius = wheelbase / abs_tan;
+        v_turn = std::sqrt(max_lateral_acc * turn_radius);
+    }
 
-    // Step linear
-    if (range > 4.0f)
-        velocity = max_speed_;
-    else if (range > 3.0f)
-        velocity = 3.0f;
-    else if (range > 2.0f)
-        velocity = 2.0f;
-    else if (range > 1.0f)
-        velocity = 1.0f;
-    else if (range > 0.5)
-        velocity = 0.5f;
-    else
-        velocity = min_speed_;
+    // Limit 2: Stopping distance
+    // The car must be able to stop before reaching the target point.
+    // From v^2 = 2 * a * d  ->  v = sqrt(2 * a * d).
+    float usable_distance = std::max(range - stop_margin, 0.0f);
+    float v_stop = std::sqrt(2.0f * max_brake_acc * usable_distance);
 
+    // Final speed: the most restrictive limit wins
+    float velocity = std::min({static_cast<float>(max_speed_), v_turn, v_stop});
     velocity = std::clamp(velocity, static_cast<float>(min_speed_), static_cast<float>(max_speed_));
 
     // Publishing to drive
