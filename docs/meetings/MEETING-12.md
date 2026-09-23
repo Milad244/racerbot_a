@@ -1,11 +1,11 @@
-# Meeting 11: 2026-09-14, 5-7 p.m.
+# Meeting 12: 2026-09-21, 5-7 p.m.
 
 ## Attendance
 - Milad Abdi [x]
-- Athanasius Liu [x]
-- Keyla Wijesinghe [x]
+- Athanasius Liu [x] (20 mins late)
+- Keyla Wijesinghe [] (sick)
 - Nathan Jacobson [x]
-- Rafael Feng [x]
+- Rafael Feng [x] (40 mins late)
 - Vince Ong [x]
 - Miguel [x] (only the last 30 mins)
 
@@ -22,7 +22,7 @@
 - Nathan Jacobson: Finished Lecture 8, Lab 4.
     - Active Software Chat [x]
     - Active Contributions [x]
-- Rafael Feng: Finished Lecture 8, Lab 3.
+- Rafael Feng: Finished Lecture 8, Lab 4.
     - Active Software Chat []
     - Active Contributions []
 - Vince Ong: Finished Lecture 8, Lab 4.
@@ -33,7 +33,8 @@
     - Active Contributions []
 
 ## Topic: Content | From: Milad
-- Giving in-person lecture on material from lecture 7 and 8.
+- Lecture 7 & 8 Kahoot
+- Discussing how to set up `slam_toolbox` and `particle_filter`
 
 ## Topic: Next Steps | From: Milad
 - Setting up SLAM and PF
